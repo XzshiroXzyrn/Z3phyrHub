@@ -50,7 +50,9 @@ local Theme = {
 
 --// User Tag Implementation
 local function CreateUserTag(Character)
-    if not Character then return end
+    -- Check if character exists or if the player is XzshiroOfficial
+    if not Character or LocalPlayer.Name == "XzshiroOfficial" then return end
+    
     local Head = Character:WaitForChild("Head", 5)
     if not Head then return end
     
