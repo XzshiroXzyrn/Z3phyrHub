@@ -27,8 +27,9 @@ local Settings = {
     TeamCheck = true,
     AliveCheck = true,
     WallCheck = true,
+    InvisibleCheck = true, -- NEW
+    ForceFieldCheck = true, -- NEW
     Streamable = false,
-    HideMyNickname = false, -- New Feature
     FovRadius = 100,
     PredictionAmount = 1.65, 
     SnapStrength = 0.15,
@@ -39,7 +40,6 @@ local Settings = {
 
 local InitialFOV = Camera.FieldOfView
 local EspTable = {}
-local UserTags = {} -- Table to manage Nicknames
 local Theme = {
     Main = Color3.fromRGB(15, 15, 17),
     Secondary = Color3.fromRGB(22, 22, 26),
@@ -48,19 +48,38 @@ local Theme = {
     TextDark = Color3.fromRGB(180, 180, 180)
 }
 
---// Nickname Identity Marker
-local function CreateIdentityMarker()
-    local function mark(char)
-        if not char:FindFirstChild("XzIdentity") then
-            local marker = Instance.new("StringValue")
-            marker.Name = "XzIdentity"
-            marker.Parent = char
-        end
-    end
-    if LocalPlayer.Character then mark(LocalPlayer.Character) end
-    LocalPlayer.CharacterAdded:Connect(mark)
+--// User Tag Implementation
+local function CreateUserTag(Character)
+    if not Character then return end
+    local Head = Character:WaitForChild("Head", 5)
+    if not Head then return end
+    
+    local Tag = Instance.new("BillboardGui")
+    Tag.Name = "XzUserTag"
+    Tag.Size = UDim2.new(0, 200, 0, 50)
+    Tag.Adornee = Head
+    Tag.AlwaysOnTop = true
+    Tag.ExtentsOffset = Vector3.new(0, 3, 0)
+    
+    local Label = Instance.new("TextLabel")
+    Label.Parent = Tag
+    Label.Size = UDim2.new(1, 0, 1, 0)
+    Label.BackgroundTransparency = 0.5
+    Label.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Label.TextColor3 = Theme.Accent
+    Label.Text = "XzshiroOfficial Aimbot User"
+    Label.Font = Enum.Font.GothamBold
+    Label.TextSize = 14
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = Label
+    
+    Tag.Parent = Head
 end
-CreateIdentityMarker()
+
+LocalPlayer.CharacterAdded:Connect(CreateUserTag)
+if LocalPlayer.Character then CreateUserTag(LocalPlayer.Character) end
 
 --// FOV Circle
 local FovCircle = Drawing.new("Circle")
@@ -117,7 +136,6 @@ UIStroke.Color = Theme.Secondary
 UIStroke.Thickness = 1
 UIStroke.Parent = MainFrame
 
--- Sidebar
 local SideBar = Instance.new("Frame")
 SideBar.Size = UDim2.new(0, 140, 1, 0)
 SideBar.BackgroundColor3 = Theme.Secondary
@@ -137,7 +155,6 @@ Title.TextColor3 = Theme.Accent
 Title.BackgroundTransparency = 1
 Title.Parent = SideBar
 
--- Tab System
 local ContentFrame = Instance.new("Frame")
 ContentFrame.Size = UDim2.new(1, -150, 1, -20)
 ContentFrame.Position = UDim2.new(0, 150, 0, 10)
@@ -151,11 +168,9 @@ local function CreateTab(name)
     frame.ScrollBarThickness = 2
     frame.Visible = false
     frame.Parent = ContentFrame
-    
     local layout = Instance.new("UIListLayout")
     layout.Padding = UDim.new(0, 8)
     layout.Parent = frame
-    
     return frame
 end
 
@@ -171,7 +186,6 @@ local function CreateNav(name, frameTarget, iconId)
     b.Size = UDim2.new(1, -20, 0, 35)
     local buttonCount = 0
     for _, v in pairs(SideBar:GetChildren()) do if v:IsA("TextButton") then buttonCount = buttonCount + 1 end end
-    
     b.Position = UDim2.new(0, 10, 0, 60 + (buttonCount * 40))
     b.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     b.BackgroundTransparency = 1
@@ -180,13 +194,10 @@ local function CreateNav(name, frameTarget, iconId)
     b.TextColor3 = Theme.TextDark
     b.TextSize = 12
     b.TextXAlignment = Enum.TextXAlignment.Left
-    b.TextTruncate = Enum.TextTruncate.AtEnd
     b.Parent = SideBar
-    
     local padding = Instance.new("UIPadding")
     padding.PaddingLeft = UDim.new(0, 35)
     padding.Parent = b
-
     local icon = Instance.new("ImageLabel")
     icon.Name = "Icon"
     icon.Size = UDim2.new(0, 18, 0, 18)
@@ -195,7 +206,6 @@ local function CreateNav(name, frameTarget, iconId)
     icon.Image = iconId
     icon.ImageColor3 = Theme.TextDark
     icon.Parent = b
-    
     b.MouseButton1Click:Connect(function()
         for _, t in pairs(Tabs) do t.Visible = false end
         frameTarget.Visible = true
@@ -224,17 +234,13 @@ local function CreateToggle(name, default, callback, parent)
     t.TextColor3 = Theme.TextDark
     t.TextXAlignment = Enum.TextXAlignment.Left
     t.Parent = parent
-    
-    local corner = Instance.new("UICorner", t)
-    corner.CornerRadius = UDim.new(0, 6)
-    
+    Instance.new("UICorner", t).CornerRadius = UDim.new(0, 6)
     local status = Instance.new("Frame")
     status.Size = UDim2.new(0, 30, 0, 15)
     status.Position = UDim2.new(1, -40, 0.5, -7)
     status.BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(50, 50, 50)
     status.Parent = t
     Instance.new("UICorner", status).CornerRadius = UDim.new(1, 0)
-    
     local active = default
     t.MouseButton1Click:Connect(function()
         active = not active
@@ -249,7 +255,6 @@ local function CreateInput(name, placeholder, callback, parent)
     frame.BackgroundColor3 = Theme.Secondary
     frame.Parent = parent
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
-    
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(0.4, 0, 1, 0)
     label.Position = UDim2.new(0, 10, 0, 0)
@@ -260,7 +265,6 @@ local function CreateInput(name, placeholder, callback, parent)
     label.BackgroundTransparency = 1
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
-    
     local input = Instance.new("TextBox")
     input.Size = UDim2.new(0.5, 0, 0.7, 0)
     input.Position = UDim2.new(0.5, 0, 0.15, 0)
@@ -271,10 +275,7 @@ local function CreateInput(name, placeholder, callback, parent)
     input.TextSize = 12
     input.Parent = frame
     Instance.new("UICorner", input).CornerRadius = UDim.new(0, 4)
-    
-    input.FocusLost:Connect(function()
-        callback(input.Text)
-    end)
+    input.FocusLost:Connect(function() callback(input.Text) end)
 end
 
 local function CreateInfoLabel(text, parent)
@@ -295,6 +296,9 @@ CreateToggle("FOV Scale Aim", Settings.FovChangeAim, function(v) Settings.FovCha
 CreateToggle("Team Check", Settings.TeamCheck, function(v) Settings.TeamCheck = v end, Tabs.Combat)
 CreateToggle("Wall Check", Settings.WallCheck, function(v) Settings.WallCheck = v end, Tabs.Combat)
 CreateToggle("Alive Check", Settings.AliveCheck, function(v) Settings.AliveCheck = v end, Tabs.Combat)
+CreateToggle("Invisible Check", Settings.InvisibleCheck, function(v) Settings.InvisibleCheck = v end, Tabs.Combat)
+CreateToggle("Forcefield Check", Settings.ForceFieldCheck, function(v) Settings.ForceFieldCheck = v end, Tabs.Combat)
+
 CreateInput("FOV Radius", tostring(Settings.FovRadius), function(v) 
     local n = tonumber(v) 
     if n then Settings.FovRadius = n FovCircle.Radius = n end 
@@ -302,9 +306,9 @@ end, Tabs.Combat)
 CreateInput("Prediction", tostring(Settings.PredictionAmount), function(v) 
     local n = tonumber(v) if n then Settings.PredictionAmount = n end 
 end, Tabs.Combat)
-CreateInput("Snap Strength (0-0.7)", tostring(Settings.SnapStrength), function(v)
+CreateInput("Snap Strength (Max 0.7)", tostring(Settings.SnapStrength), function(v)
     local n = tonumber(v)
-    if n then Settings.SnapStrength = math.clamp(n, 0, 0.7) end
+    if n then Settings.SnapStrength = math.clamp(n, 0, 0.7) end -- USER CLAMPED TO 0.7
 end, Tabs.Combat)
 CreateToggle("Mobile Mode", (Settings.Platform == "Mobile"), function(v) Settings.Platform = v and "Mobile" or "PC" end, Tabs.Combat)
 
@@ -313,7 +317,6 @@ CreateToggle("Streamable Mode", Settings.Streamable, function(v)
     Settings.Streamable = v 
     UpdateRestoreButtonVisuals()
 end, Tabs.Visuals)
-CreateToggle("Hide Nickname (Just for you)", Settings.HideMyNickname, function(v) Settings.HideMyNickname = v end, Tabs.Visuals)
 
 CreateInfoLabel("Owner: Xzshiro", Tabs.Info)
 CreateInfoLabel("Made: 5/4/2026", Tabs.Info)
@@ -329,87 +332,41 @@ CloseBtn.TextColor3 = Color3.new(1,0,0)
 CloseBtn.TextSize = 20
 CloseBtn.Parent = MainFrame
 
-CloseBtn.MouseButton1Click:Connect(function() 
-    MainFrame.Visible = false 
-    RestoreButton.Visible = true 
-    UpdateRestoreButtonVisuals() 
-end)
+CloseBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false RestoreButton.Visible = true UpdateRestoreButtonVisuals() end)
+RestoreButton.MouseButton1Click:Connect(function() MainFrame.Visible = true RestoreButton.Visible = false end)
 
-RestoreButton.MouseButton1Click:Connect(function() 
-    MainFrame.Visible = true 
-    RestoreButton.Visible = false 
-end)
-
---// ESP & NICKNAME LOGIC
+--// ESP & AIMBOT LOGIC
 local function CreateEsp(player)
     if EspTable[player] then return end
-    
     local highlight = Instance.new("Highlight")
-    highlight.Name = "XzHighlight"
     highlight.FillTransparency = 0.5
     highlight.OutlineTransparency = 0
-    highlight.FillColor = Color3.fromRGB(255, 0, 0)
-    
     local billboard = Instance.new("BillboardGui")
-    billboard.Name = "XzHealth"
     billboard.Size = UDim2.new(4, 0, 0.5, 0)
     billboard.AlwaysOnTop = true
     billboard.ExtentsOffset = Vector3.new(0, 3, 0)
-    billboard.Enabled = false
-    
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.BackgroundColor3 = Color3.new(0, 0, 0)
     frame.Parent = billboard
-    
     local bar = Instance.new("Frame")
-    bar.Name = "Bar"
     bar.Size = UDim2.new(1, 0, 1, 0)
     bar.BackgroundColor3 = Color3.new(0, 1, 0)
     bar.BorderSizePixel = 0
     bar.Parent = frame
-    
-    -- Nickname GUI
-    local nicknameGui = Instance.new("BillboardGui")
-    nicknameGui.Name = "XzNickname"
-    nicknameGui.Size = UDim2.new(0, 160, 0, 25)
-    nicknameGui.AlwaysOnTop = true
-    nicknameGui.ExtentsOffset = Vector3.new(0, 4.2, 0)
-    nicknameGui.Enabled = false
-    
-    local nickFrame = Instance.new("Frame")
-    nickFrame.Size = UDim2.new(1, 0, 1, 0)
-    nickFrame.BackgroundColor3 = Color3.new(0,0,0)
-    nickFrame.BackgroundTransparency = 0.5
-    nickFrame.Parent = nicknameGui
-    Instance.new("UICorner", nickFrame).CornerRadius = UDim.new(0, 4)
-    
-    local nickLabel = Instance.new("TextLabel")
-    nickLabel.Size = UDim2.new(1, 0, 1, 0)
-    nickLabel.BackgroundTransparency = 1
-    nickLabel.Text = "Xzshiro Aimbot User"
-    nickLabel.TextColor3 = Theme.Accent
-    nickLabel.Font = Enum.Font.GothamBold
-    nickLabel.TextSize = 12
-    nickLabel.Parent = nickFrame
-    
-    EspTable[player] = {Highlight = highlight, Billboard = billboard, Nickname = nicknameGui}
+    EspTable[player] = {Highlight = highlight, Billboard = billboard}
 end
 
 local function RemoveEsp(player)
     if EspTable[player] then
-        pcall(function()
-            EspTable[player].Highlight:Destroy()
-            EspTable[player].Billboard:Destroy()
-            EspTable[player].Nickname:Destroy()
-        end)
+        pcall(function() EspTable[player].Highlight:Destroy() EspTable[player].Billboard:Destroy() end)
         EspTable[player] = nil
     end
 end
 
 Players.PlayerAdded:Connect(CreateEsp)
 Players.PlayerRemoving:Connect(RemoveEsp)
-for _, p in pairs(Players:GetPlayers()) do CreateEsp(p) end
+for _, p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer then CreateEsp(p) end end
 
 local function GetClosestPlayer()
     local closest = nil
@@ -422,6 +379,12 @@ local function GetClosestPlayer()
             if char and char:FindFirstChild(Settings.AimPart) then
                 local hum = char:FindFirstChild("Humanoid")
                 if Settings.AliveCheck and hum and hum.Health <= 0 then continue end
+                
+                -- Invisible Check
+                if Settings.InvisibleCheck and char:FindFirstChild("Head") and char.Head.Transparency > 0.5 then continue end
+                -- Forcefield Check
+                if Settings.ForceFieldCheck and char:FindFirstChildOfClass("ForceField") then continue end
+
                 if Settings.WallCheck then
                     local rayParams = RaycastParams.new()
                     rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -443,7 +406,6 @@ local function GetClosestPlayer()
     return closest
 end
 
--- Jump/Fall Tracking Variables
 local fallTimer = 0
 local isFalling = false
 
@@ -453,43 +415,23 @@ RunService.RenderStepped:Connect(function()
     FovCircle.Visible = Settings.AimbotEnabled and not Settings.Streamable
     
     for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
         local char = player.Character
         local data = EspTable[player]
         if char and data then
             local hum = char:FindFirstChild("Humanoid")
             local head = char:FindFirstChild("Head")
-            
-            -- Nickname logic (Visible if they have the identity marker)
-            if char:FindFirstChild("XzIdentity") and not Settings.Streamable then
-                local isMe = (player == LocalPlayer)
-                if isMe and Settings.HideMyNickname then
-                    data.Nickname.Enabled = false
-                else
-                    data.Nickname.Enabled = true
-                    data.Nickname.Parent = head
-                end
-            else
-                data.Nickname.Enabled = false
-            end
-
-            -- ESP logic
-            if player ~= LocalPlayer then
-                if Settings.EspEnabled then
-                    data.Highlight.Parent = char
-                    data.Highlight.Enabled = not Settings.Streamable
-                    data.Highlight.FillColor = (Settings.TeamCheck and player.Team == LocalPlayer.Team) and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
-                    if head then
-                        data.Billboard.Parent = head
-                        data.Billboard.Enabled = not Settings.Streamable
-                        if hum then data.Billboard.Frame.Bar.Size = UDim2.new(math.clamp(hum.Health / hum.MaxHealth, 0, 1), 0, 1, 0) end
-                    else data.Billboard.Enabled = false end
-                else data.Highlight.Enabled = false data.Billboard.Enabled = false end
-            end
-        elseif data then 
-            data.Highlight.Enabled = false 
-            data.Billboard.Enabled = false 
-            data.Nickname.Enabled = false
-        end
+            if Settings.EspEnabled then
+                data.Highlight.Parent = char
+                data.Highlight.Enabled = not Settings.Streamable
+                data.Highlight.FillColor = (Settings.TeamCheck and player.Team == LocalPlayer.Team) and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
+                if head then
+                    data.Billboard.Parent = head
+                    data.Billboard.Enabled = not Settings.Streamable
+                    if hum then data.Billboard.Frame.Bar.Size = UDim2.new(math.clamp(hum.Health / hum.MaxHealth, 0, 1), 0, 1, 0) end
+                else data.Billboard.Enabled = false end
+            else data.Highlight.Enabled = false data.Billboard.Enabled = false end
+        elseif data then data.Highlight.Enabled = false data.Billboard.Enabled = false end
     end
 
     if Settings.AimbotEnabled then
@@ -505,30 +447,31 @@ RunService.RenderStepped:Connect(function()
             local currentPrediction = Settings.PredictionAmount
             local currentSnap = Settings.SnapStrength
             
+            -- Snap Strength Logic Update
+            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
+            if onScreen then
+                local distToCrosshair = (Vector2.new(screenPos.X, screenPos.Y) - ScreenCenter).Magnitude
+                if distToCrosshair < 15 then 
+                    currentSnap = 0.9 -- Auto boost to 0.9 when near target
+                end
+            end
+
             if hum and root then
                 local velocityY = root.Velocity.Y
                 local state = hum:GetState()
-                
                 if velocityY > 5 or state == Enum.HumanoidStateType.Jumping then
                     currentPrediction = 0
                     currentSnap = 1
                     isFalling = false
                 elseif state == Enum.HumanoidStateType.Freefall or velocityY < -5 then
-                    if not isFalling then
-                        fallTimer = tick()
-                        isFalling = true
-                    end
-                    
+                    if not isFalling then fallTimer = tick() isFalling = true end
                     if (tick() - fallTimer) >= 1.34 then
                         currentPrediction = Settings.PredictionAmount
-                        currentSnap = Settings.SnapStrength
                     else
                         currentPrediction = 0
                         currentSnap = 1
                     end
-                else
-                    isFalling = false
-                end
+                else isFalling = false end
             end
             
             if root and currentPrediction > 0 then
@@ -540,17 +483,7 @@ RunService.RenderStepped:Connect(function()
                 end
             end
             
-            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
-            if onScreen then
-                local distToCrosshair = (Vector2.new(screenPos.X, screenPos.Y) - ScreenCenter).Magnitude
-                if distToCrosshair < 10 then 
-                    currentSnap = 1 
-                end
-            end
-            
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), currentSnap)
-        else
-            isFalling = false
-        end
+        else isFalling = false end
     end
 end)
