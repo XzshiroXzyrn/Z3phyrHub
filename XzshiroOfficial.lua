@@ -1,8 +1,15 @@
+--[[ 
+    XZ PREMIUM V4 - ORGANIZED VERSION
+    Owner: XzshiroOfficials
+]]
+
 --// SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+
+--// CONSTANTS
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
@@ -19,7 +26,7 @@ local Settings = {
     Streamable = false,
     TracerEnabled = false,
     FovRadius = 100,
-    PredictionAmount = 0.165, -- Adjusted for the new distance-based math
+    PredictionAmount = 0.165,
     SnapStrength = 0.15,
     StickyAim = 0.5,
     FovColor = Color3.fromRGB(0, 255, 200),
@@ -27,18 +34,6 @@ local Settings = {
     Platform = "PC"
 }
 
--- Dynamically track FOV to detect zooming
-local BaseFOV = Camera.FieldOfView
-spawn(function()
-    while task.wait(1) do
-        -- Updates base FOV if player isn't aiming, to adapt to different games
-        if not Settings.AimbotEnabled or not Settings.FovChangeAim then
-            BaseFOV = Camera.FieldOfView
-        end
-    end
-end)
-
---// THEME
 local Theme = {
     Main = Color3.fromRGB(10, 10, 12),
     Secondary = Color3.fromRGB(18, 18, 22),
@@ -49,8 +44,14 @@ local Theme = {
     Tracer = Color3.fromRGB(0, 200, 255)
 }
 
---// UTILS
-local function ApplyGradient(obj)
+--// STATE VARIABLES
+local BaseFOV = Camera.FieldOfView
+local Tabs = {}
+
+--// UTILITIES
+local Utils = {}
+
+function Utils.ApplyGradient(obj)
     local Gradient = Instance.new("UIGradient")
     Gradient.Color = ColorSequence.new({
         ColorSequenceKeypoint.new(0, Theme.Accent),
@@ -59,80 +60,30 @@ local function ApplyGradient(obj)
     Gradient.Parent = obj
 end
 
-local function ProtectInstance(instance)
+function Utils.ProtectInstance(instance)
     pcall(function()
-        if gethui then instance.Parent = gethui()
-        elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then instance.Parent = game:GetService("CoreGui")
-        else instance.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+        if gethui then 
+            instance.Parent = gethui()
+        elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then 
+            instance.Parent = game:GetService("CoreGui")
+        else 
+            instance.Parent = LocalPlayer:WaitForChild("PlayerGui") 
+        end
     end)
 end
 
---// GUI SETUP
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "XzPremium_" .. math.random(100,999)
-ScreenGui.ResetOnSpawn = false
-ProtectInstance(ScreenGui)
+function Utils.IsVisible(part, char)
+    if not Settings.WallCheck then return true end
+    local cast = Camera:GetPartsObscuringTarget({part.Position}, {LocalPlayer.Character, char})
+    return #cast == 0
+end
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 550, 0, 400)
-MainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
-MainFrame.BackgroundColor3 = Theme.Main
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true 
-MainFrame.Parent = ScreenGui
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+--// UI FACTORY
+local UI = {}
 
-local RestoreBtn = Instance.new("TextButton")
-RestoreBtn.Size = UDim2.new(0, 160, 0, 40)
-RestoreBtn.Position = UDim2.new(0.5, -80, 0, 20)
-RestoreBtn.BackgroundColor3 = Theme.Secondary
-RestoreBtn.Text = "OPEN PREMIUM"
-RestoreBtn.TextColor3 = Color3.new(1,1,1)
-RestoreBtn.Font = Enum.Font.GothamBold
-RestoreBtn.TextSize = 14
-RestoreBtn.Visible = false
-RestoreBtn.Parent = ScreenGui
-Instance.new("UICorner", RestoreBtn).CornerRadius = UDim.new(0, 8)
-ApplyGradient(RestoreBtn)
-
-local HeaderLabel = Instance.new("TextLabel")
-HeaderLabel.Size = UDim2.new(0, 200, 0, 40)
-HeaderLabel.Position = UDim2.new(0, 15, 0, 0)
-HeaderLabel.BackgroundTransparency = 1
-HeaderLabel.Text = "XzshiroOfficials"
-HeaderLabel.TextColor3 = Theme.Accent
-HeaderLabel.Font = Enum.Font.LuckiestGuy
-HeaderLabel.TextSize = 18
-HeaderLabel.TextXAlignment = Enum.TextXAlignment.Left
-HeaderLabel.Parent = MainFrame
-
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 8)
-CloseBtn.BackgroundTransparency = 1
-CloseBtn.Text = "Ã—"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
-CloseBtn.TextSize = 28
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.Parent = MainFrame
-
-local SideBar = Instance.new("Frame")
-SideBar.Size = UDim2.new(0, 160, 1, -40)
-SideBar.Position = UDim2.new(0, 0, 0, 40)
-SideBar.BackgroundColor3 = Theme.Secondary
-SideBar.Parent = MainFrame
-Instance.new("UICorner", SideBar).CornerRadius = UDim.new(0, 10)
-
-local ContentArea = Instance.new("Frame")
-ContentArea.Size = UDim2.new(1, -170, 1, -50)
-ContentArea.Position = UDim2.new(0, 170, 0, 45)
-ContentArea.BackgroundTransparency = 1
-ContentArea.Parent = MainFrame
-
-local Tabs = {}
-local function CreateTab(name)
+function UI.CreateTab(parent, name)
     local f = Instance.new("ScrollingFrame")
+    f.Name = name .. "Tab"
     f.Size = UDim2.new(1, 0, 1, 0)
     f.BackgroundTransparency = 1
     f.Visible = false
@@ -140,50 +91,17 @@ local function CreateTab(name)
     f.ScrollBarImageColor3 = Theme.Accent
     f.CanvasSize = UDim2.new(0,0,0,0)
     f.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    f.Parent = ContentArea
+    f.Parent = parent
+    
     local l = Instance.new("UIListLayout")
     l.Padding = UDim.new(0, 8)
     l.Parent = f
+    
     Tabs[name] = f
     return f
 end
 
-local CombatTab = CreateTab("Combat")
-local VisualsTab = CreateTab("Visuals")
-local InfoTab = CreateTab("Info")
-CombatTab.Visible = true
-
---// COMPONENTS
-local function CreateNav(name, tab, iconId)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -20, 0, 40)
-    local count = 0
-    for _, v in pairs(SideBar:GetChildren()) do if v:IsA("TextButton") then count = count + 1 end end
-    btn.Position = UDim2.new(0, 10, 0, 10 + (count * 45))
-    btn.BackgroundColor3 = Color3.fromRGB(30,30,35)
-    btn.BackgroundTransparency = 1
-    btn.Text = "      " .. name
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 13
-    btn.TextColor3 = Theme.TextDark
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    btn.Parent = SideBar
-    
-    local icon = Instance.new("ImageLabel")
-    icon.Size = UDim2.new(0, 18, 0, 18)
-    icon.Position = UDim2.new(0, 10, 0.5, -9)
-    icon.Image = iconId
-    icon.BackgroundTransparency = 1
-    icon.ImageColor3 = Theme.TextDark
-    icon.Parent = btn
-
-    btn.MouseButton1Click:Connect(function()
-        for _, t in pairs(Tabs) do t.Visible = false end
-        tab.Visible = true
-    end)
-end
-
-local function CreateToggle(name, default, callback, parent)
+function UI.CreateToggle(name, default, parent, callback)
     local t = Instance.new("TextButton")
     t.Size = UDim2.new(1, -10, 0, 35)
     t.BackgroundColor3 = Theme.Secondary
@@ -210,7 +128,7 @@ local function CreateToggle(name, default, callback, parent)
     end)
 end
 
-local function CreateSlider(name, min, max, default, callback, parent)
+function UI.CreateSlider(name, min, max, default, parent, callback)
     local container = Instance.new("Frame")
     container.Size = UDim2.new(1, -10, 0, 50)
     container.BackgroundColor3 = Theme.Secondary
@@ -277,7 +195,7 @@ local function CreateSlider(name, min, max, default, callback, parent)
     end)
 end
 
-local function CreateSelector(name, options, callback, parent)
+function UI.CreateSelector(name, options, parent, callback)
     local container = Instance.new("Frame")
     container.Size = UDim2.new(1, -10, 0, 35)
     container.BackgroundColor3 = Theme.Secondary
@@ -314,27 +232,130 @@ local function CreateSelector(name, options, callback, parent)
     end)
 end
 
---// POPULATE
+--// GUI INITIALIZATION
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "XzPremium_" .. math.random(100,999)
+ScreenGui.ResetOnSpawn = false
+Utils.ProtectInstance(ScreenGui)
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 550, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
+MainFrame.BackgroundColor3 = Theme.Main
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true 
+MainFrame.Parent = ScreenGui
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+
+local SideBar = Instance.new("Frame")
+SideBar.Size = UDim2.new(0, 160, 1, -40)
+SideBar.Position = UDim2.new(0, 0, 0, 40)
+SideBar.BackgroundColor3 = Theme.Secondary
+SideBar.Parent = MainFrame
+Instance.new("UICorner", SideBar).CornerRadius = UDim.new(0, 10)
+
+local ContentArea = Instance.new("Frame")
+ContentArea.Size = UDim2.new(1, -170, 1, -50)
+ContentArea.Position = UDim2.new(0, 170, 0, 45)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainFrame
+
+-- Header & Close
+local HeaderLabel = Instance.new("TextLabel")
+HeaderLabel.Size = UDim2.new(0, 200, 0, 40)
+HeaderLabel.Position = UDim2.new(0, 15, 0, 0)
+HeaderLabel.BackgroundTransparency = 1
+HeaderLabel.Text = "XzshiroOfficials"
+HeaderLabel.TextColor3 = Theme.Accent
+HeaderLabel.Font = Enum.Font.LuckiestGuy
+HeaderLabel.TextSize = 18
+HeaderLabel.TextXAlignment = Enum.TextXAlignment.Left
+HeaderLabel.Parent = MainFrame
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 8)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "Ã—"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
+CloseBtn.TextSize = 28
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Parent = MainFrame
+
+local RestoreBtn = Instance.new("TextButton")
+RestoreBtn.Size = UDim2.new(0, 160, 0, 40)
+RestoreBtn.Position = UDim2.new(0.5, -80, 0, 20)
+RestoreBtn.BackgroundColor3 = Theme.Secondary
+RestoreBtn.Text = "OPEN PREMIUM"
+RestoreBtn.TextColor3 = Color3.new(1,1,1)
+RestoreBtn.Font = Enum.Font.GothamBold
+RestoreBtn.TextSize = 14
+RestoreBtn.Visible = false
+RestoreBtn.Parent = ScreenGui
+Instance.new("UICorner", RestoreBtn).CornerRadius = UDim.new(0, 8)
+Utils.ApplyGradient(RestoreBtn)
+
+-- Navigation Logic
+local function CreateNav(name, tab, iconId)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 40)
+    
+    local count = 0
+    for _, v in pairs(SideBar:GetChildren()) do if v:IsA("TextButton") then count = count + 1 end end
+    
+    btn.Position = UDim2.new(0, 10, 0, 10 + (count * 45))
+    btn.BackgroundColor3 = Color3.fromRGB(30,30,35)
+    btn.BackgroundTransparency = 1
+    btn.Text = "      " .. name
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13
+    btn.TextColor3 = Theme.TextDark
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.Parent = SideBar
+    
+    local icon = Instance.new("ImageLabel")
+    icon.Size = UDim2.new(0, 18, 0, 18)
+    icon.Position = UDim2.new(0, 10, 0.5, -9)
+    icon.Image = iconId
+    icon.BackgroundTransparency = 1
+    icon.ImageColor3 = Theme.TextDark
+    icon.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        for _, t in pairs(Tabs) do t.Visible = false end
+        tab.Visible = true
+    end)
+end
+
+--// POPULATE TABS
+local CombatTab = UI.CreateTab(ContentArea, "Combat")
+local VisualsTab = UI.CreateTab(ContentArea, "Visuals")
+local InfoTab = UI.CreateTab(ContentArea, "Info")
+CombatTab.Visible = true
+
 CreateNav("COMBAT", CombatTab, "rbxassetid://10747373176")
 CreateNav("VISUALS", VisualsTab, "rbxassetid://10709812534")
 CreateNav("INFO", InfoTab, "rbxassetid://10723346959")
 
-CreateSelector("Platform Mode", {"PC", "Mobile"}, function(v) Settings.Platform = v end, CombatTab)
-CreateToggle("Enable Aimbot", Settings.AimbotEnabled, function(v) Settings.AimbotEnabled = v end, CombatTab)
-CreateToggle("Team Check", Settings.TeamCheck, function(v) Settings.TeamCheck = v end, CombatTab)
-CreateToggle("FOV-Change Activation", Settings.FovChangeAim, function(v) Settings.FovChangeAim = v end, CombatTab)
-CreateSlider("FOV Radius", 10, 800, Settings.FovRadius, function(v) Settings.FovRadius = v end, CombatTab)
-CreateSlider("Prediction", 0, 5, Settings.PredictionAmount, function(v) Settings.PredictionAmount = v end, CombatTab)
-CreateSlider("Snap Strength", 0, 1, Settings.SnapStrength, function(v) Settings.SnapStrength = v end, CombatTab)
-CreateToggle("Wall Check", Settings.WallCheck, function(v) Settings.WallCheck = v end, CombatTab)
-CreateToggle("Invisible Check", Settings.InvisibleCheck, function(v) Settings.InvisibleCheck = v end, CombatTab)
-CreateToggle("ForceField Check", Settings.ForceFieldCheck, function(v) Settings.ForceFieldCheck = v end, CombatTab)
+-- Combat Settings
+UI.CreateSelector("Platform Mode", {"PC", "Mobile"}, CombatTab, function(v) Settings.Platform = v end)
+UI.CreateToggle("Enable Aimbot", Settings.AimbotEnabled, CombatTab, function(v) Settings.AimbotEnabled = v end)
+UI.CreateToggle("Team Check", Settings.TeamCheck, CombatTab, function(v) Settings.TeamCheck = v end)
+UI.CreateToggle("FOV-Change Activation", Settings.FovChangeAim, CombatTab, function(v) Settings.FovChangeAim = v end)
+UI.CreateSlider("FOV Radius", 10, 800, Settings.FovRadius, CombatTab, function(v) Settings.FovRadius = v end)
+UI.CreateSlider("Prediction", 0, 5, Settings.PredictionAmount, CombatTab, function(v) Settings.PredictionAmount = v v end)
+UI.CreateSlider("Snap Strength", 0, 1, Settings.SnapStrength, CombatTab, function(v) Settings.SnapStrength = v end)
+UI.CreateToggle("Wall Check", Settings.WallCheck, CombatTab, function(v) Settings.WallCheck = v end)
+UI.CreateToggle("Invisible Check", Settings.InvisibleCheck, CombatTab, function(v) Settings.InvisibleCheck = v end)
+UI.CreateToggle("ForceField Check", Settings.ForceFieldCheck, CombatTab, function(v) Settings.ForceFieldCheck = v end)
 
-CreateToggle("Enable ESP", Settings.EspEnabled, function(v) Settings.EspEnabled = v end, VisualsTab)
-CreateToggle("Target Tracer", Settings.TracerEnabled, function(v) Settings.TracerEnabled = v end, VisualsTab) 
-CreateToggle("Streamable (Hide FOV)", Settings.Streamable, function(v) Settings.Streamable = v end, VisualsTab)
+-- Visuals Settings
+UI.CreateToggle("Enable ESP", Settings.EspEnabled, VisualsTab, function(v) Settings.EspEnabled = v end)
+UI.CreateToggle("Target Tracer", Settings.TracerEnabled, VisualsTab, function(v) Settings.TracerEnabled = v end) 
+UI.CreateToggle("Streamable (Hide FOV)", Settings.Streamable, VisualsTab, function(v) Settings.Streamable = v end)
 
--- Info Tab
+-- Info Tab Contents
 local function AddInfo(txt)
     local l = Instance.new("TextLabel")
     l.Size = UDim2.new(1, -10, 0, 30)
@@ -350,7 +371,7 @@ AddInfo("Owner: XzshiroOfficials")
 AddInfo("Status: Active")
 AddInfo("Version: Premium V4 Fixed")
 
---// AIMBOT & TRACER LOGIC
+--// CORE GAMEPLAY LOGIC
 local FovCircle = Drawing.new("Circle")
 FovCircle.Thickness = 1.5
 FovCircle.Color = Theme.Accent
@@ -360,12 +381,6 @@ local TargetLine = Drawing.new("Line")
 TargetLine.Thickness = 2
 TargetLine.Transparency = 1
 TargetLine.Color = Theme.Tracer
-
-local function IsVisible(part, char)
-    if not Settings.WallCheck then return true end
-    local cast = Camera:GetPartsObscuringTarget({part.Position}, {LocalPlayer.Character, char})
-    return #cast == 0
-end
 
 local function GetClosestPlayer()
     local target = nil
@@ -386,7 +401,7 @@ local function GetClosestPlayer()
             if onScreen then
                 local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                 if dist < shortestDist then
-                    if IsVisible(part, char) then
+                    if Utils.IsVisible(part, char) then
                         shortestDist = dist
                         target = part
                     end
@@ -397,20 +412,30 @@ local function GetClosestPlayer()
     return target
 end
 
+-- Update Base FOV Loop
+task.spawn(function()
+    while true do
+        if not Settings.AimbotEnabled or not Settings.FovChangeAim then
+            BaseFOV = Camera.FieldOfView
+        end
+        task.wait(1)
+    end
+end)
+
+-- Main Loop
 RunService.RenderStepped:Connect(function()
     local center = (Settings.Platform == "PC") and UserInputService:GetMouseLocation() or (Camera.ViewportSize / 2)
     
+    -- Visual updates
     FovCircle.Visible = Settings.AimbotEnabled and not Settings.Streamable
     FovCircle.Radius = Settings.FovRadius
     FovCircle.Position = center
 
+    -- Check activation state
     local isActivated = false
     if Settings.AimbotEnabled then
         if Settings.FovChangeAim then
-            -- FIXED: Detects if current FOV is significantly lower than base (Zoomed in)
-            if Camera.FieldOfView < (BaseFOV - 5) then 
-                isActivated = true 
-            end
+            if Camera.FieldOfView < (BaseFOV - 5) then isActivated = true end
         else
             if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) or UserInputService:IsMouseButtonPressed(Enum.UserInputType.Touch) then
                 isActivated = true
@@ -430,17 +455,15 @@ RunService.RenderStepped:Connect(function()
         TargetLine.Visible = false
     end
 
-    -- Aimbot Movement Logic
+    -- Aimbot Logic
     if isActivated and foundTarget then
         local targetPos = foundTarget.Position
         local char = foundTarget.Parent
         
-        -- FIXED: Speed-Based Prediction
-        -- Distance matters: Further targets need more lead time.
+        -- Prediction Math
         if char.PrimaryPart then
             local velocity = char.PrimaryPart.Velocity
             local distance = (Camera.CFrame.Position - targetPos).Magnitude
-            -- Dynamic calculation: Velocity * Distance * Sensitivity Factor
             local predictionOffset = velocity * (distance / 100) * Settings.PredictionAmount
             targetPos = targetPos + predictionOffset
         end
@@ -453,7 +476,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
---// WINDOW TOGGLE
+-- Window Toggle Connections
 CloseBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     RestoreBtn.Visible = true
