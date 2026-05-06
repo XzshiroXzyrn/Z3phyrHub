@@ -9,14 +9,15 @@ local Camera = workspace.CurrentCamera
 --// SETTINGS
 local Settings = {
     AimbotEnabled = false,
-    FovChangeAim = false, -- Only aim when zooming/FOV changes
+    FovChangeAim = false,
     EspEnabled = false,
-    TeamCheck = true,
+    TeamCheck = true, -- Now toggleable in UI
     AliveCheck = true,
     WallCheck = true,
     InvisibleCheck = true,
     ForceFieldCheck = true,
     Streamable = false,
+    TracerEnabled = false, -- New Feature
     FovRadius = 100,
     PredictionAmount = 1.65, 
     SnapStrength = 0.15,
@@ -35,7 +36,8 @@ local Theme = {
     Accent = Color3.fromRGB(0, 160, 255),
     AccentDark = Color3.fromRGB(0, 60, 150),
     Text = Color3.fromRGB(255, 255, 255),
-    TextDark = Color3.fromRGB(160, 160, 160)
+    TextDark = Color3.fromRGB(160, 160, 160),
+    Tracer = Color3.fromRGB(0, 200, 255)
 }
 
 --// UTILS
@@ -68,7 +70,7 @@ MainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
 MainFrame.BackgroundColor3 = Theme.Main
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
-MainFrame.Draggable = true
+MainFrame.Draggable = true -- Standard dragging
 MainFrame.Parent = ScreenGui
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
@@ -310,6 +312,7 @@ CreateNav("INFO", InfoTab, "rbxassetid://10723346959")
 
 CreateSelector("Platform Mode", {"PC", "Mobile"}, function(v) Settings.Platform = v end, CombatTab)
 CreateToggle("Enable Aimbot", Settings.AimbotEnabled, function(v) Settings.AimbotEnabled = v end, CombatTab)
+CreateToggle("Team Check", Settings.TeamCheck, function(v) Settings.TeamCheck = v end, CombatTab) -- ADDED BELOW AIMBOT
 CreateToggle("FOV-Change Activation", Settings.FovChangeAim, function(v) Settings.FovChangeAim = v end, CombatTab)
 CreateSlider("FOV Radius", 10, 800, Settings.FovRadius, function(v) Settings.FovRadius = v end, CombatTab)
 CreateSlider("Prediction", 0, 10, Settings.PredictionAmount, function(v) Settings.PredictionAmount = v end, CombatTab)
@@ -319,6 +322,7 @@ CreateToggle("Invisible Check", Settings.InvisibleCheck, function(v) Settings.In
 CreateToggle("ForceField Check", Settings.ForceFieldCheck, function(v) Settings.ForceFieldCheck = v end, CombatTab)
 
 CreateToggle("Enable ESP", Settings.EspEnabled, function(v) Settings.EspEnabled = v end, VisualsTab)
+CreateToggle("Target Tracer", Settings.TracerEnabled, function(v) Settings.TracerEnabled = v end, VisualsTab) -- TRACER TOGGLE
 CreateToggle("Streamable (Hide FOV)", Settings.Streamable, function(v) Settings.Streamable = v end, VisualsTab)
 
 -- Info Tab
@@ -337,11 +341,16 @@ AddInfo("Owner: XzshiroOfficials")
 AddInfo("Status: Active")
 AddInfo("Version: Premium V4 Fixed")
 
---// AIMBOT LOGIC
+--// AIMBOT & TRACER LOGIC
 local FovCircle = Drawing.new("Circle")
 FovCircle.Thickness = 1.5
 FovCircle.Color = Theme.Accent
 FovCircle.Filled = false
+
+local TargetLine = Drawing.new("Line")
+TargetLine.Thickness = 2
+TargetLine.Transparency = 1
+TargetLine.Color = Theme.Tracer
 
 local function IsVisible(part, char)
     if not Settings.WallCheck then return true end
@@ -368,7 +377,6 @@ local function GetClosestPlayer()
             if onScreen then
                 local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                 if dist < shortestDist then
-                    -- Optimization: Check visibility only for the potential candidate
                     if IsVisible(part, char) then
                         shortestDist = dist
                         target = part
@@ -387,7 +395,6 @@ RunService.RenderStepped:Connect(function()
     FovCircle.Radius = Settings.FovRadius
     FovCircle.Position = center
 
-    -- Detect activation (Keypress OR FOV Change)
     local isActivated = false
     if Settings.AimbotEnabled then
         if Settings.FovChangeAim then
@@ -399,27 +406,36 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    if isActivated then
-        local target = GetClosestPlayer()
-        if target then
-            local targetPos = target.Position
-            local char = target.Parent
-            
-            -- Improved Prediction
-            if char.PrimaryPart then
-                targetPos = targetPos + (char.PrimaryPart.Velocity * (Settings.PredictionAmount / 10))
-            end
+    local foundTarget = GetClosestPlayer()
+    
+    -- Tracer Logic
+    if Settings.TracerEnabled and foundTarget then
+        local tPos, _ = Camera:WorldToViewportPoint(foundTarget.Position)
+        TargetLine.Visible = true
+        TargetLine.From = center
+        TargetLine.To = Vector2.new(tPos.X, tPos.Y)
+    else
+        TargetLine.Visible = false
+    end
 
-            local screenPos, _ = Camera:WorldToViewportPoint(target.Position)
-            local distToCenter = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
-            local power = (distToCenter < 20) and Settings.StickyAim or Settings.SnapStrength
-            
-            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), power)
+    -- Aimbot Movement Logic
+    if isActivated and foundTarget then
+        local targetPos = foundTarget.Position
+        local char = foundTarget.Parent
+        
+        if char.PrimaryPart then
+            targetPos = targetPos + (char.PrimaryPart.Velocity * (Settings.PredictionAmount / 10))
         end
+
+        local screenPos, _ = Camera:WorldToViewportPoint(foundTarget.Position)
+        local distToCenter = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+        local power = (distToCenter < 20) and Settings.StickyAim or Settings.SnapStrength
+        
+        Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), power)
     end
 end)
 
---// WINDOW TOGGLE
+--// WINDOW TOGGLE (FIXED GLITCHING)
 CloseBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     RestoreBtn.Visible = true
