@@ -11,15 +11,15 @@ local Settings = {
     AimbotEnabled = false,
     FovChangeAim = false,
     EspEnabled = false,
-    TeamCheck = true, -- Now toggleable in UI
+    TeamCheck = true,
     AliveCheck = true,
     WallCheck = true,
     InvisibleCheck = true,
     ForceFieldCheck = true,
     Streamable = false,
-    TracerEnabled = false, -- New Feature
+    TracerEnabled = false,
     FovRadius = 100,
-    PredictionAmount = 1.65, 
+    PredictionAmount = 0.165, -- Adjusted for the new distance-based math
     SnapStrength = 0.15,
     StickyAim = 0.5,
     FovColor = Color3.fromRGB(0, 255, 200),
@@ -27,7 +27,16 @@ local Settings = {
     Platform = "PC"
 }
 
-local DefaultFOV = Camera.FieldOfView
+-- Dynamically track FOV to detect zooming
+local BaseFOV = Camera.FieldOfView
+spawn(function()
+    while task.wait(1) do
+        -- Updates base FOV if player isn't aiming, to adapt to different games
+        if not Settings.AimbotEnabled or not Settings.FovChangeAim then
+            BaseFOV = Camera.FieldOfView
+        end
+    end
+end)
 
 --// THEME
 local Theme = {
@@ -70,7 +79,7 @@ MainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
 MainFrame.BackgroundColor3 = Theme.Main
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
-MainFrame.Draggable = true -- Standard dragging
+MainFrame.Draggable = true 
 MainFrame.Parent = ScreenGui
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
@@ -312,17 +321,17 @@ CreateNav("INFO", InfoTab, "rbxassetid://10723346959")
 
 CreateSelector("Platform Mode", {"PC", "Mobile"}, function(v) Settings.Platform = v end, CombatTab)
 CreateToggle("Enable Aimbot", Settings.AimbotEnabled, function(v) Settings.AimbotEnabled = v end, CombatTab)
-CreateToggle("Team Check", Settings.TeamCheck, function(v) Settings.TeamCheck = v end, CombatTab) -- ADDED BELOW AIMBOT
+CreateToggle("Team Check", Settings.TeamCheck, function(v) Settings.TeamCheck = v end, CombatTab)
 CreateToggle("FOV-Change Activation", Settings.FovChangeAim, function(v) Settings.FovChangeAim = v end, CombatTab)
 CreateSlider("FOV Radius", 10, 800, Settings.FovRadius, function(v) Settings.FovRadius = v end, CombatTab)
-CreateSlider("Prediction", 0, 10, Settings.PredictionAmount, function(v) Settings.PredictionAmount = v end, CombatTab)
+CreateSlider("Prediction", 0, 5, Settings.PredictionAmount, function(v) Settings.PredictionAmount = v end, CombatTab)
 CreateSlider("Snap Strength", 0, 1, Settings.SnapStrength, function(v) Settings.SnapStrength = v end, CombatTab)
 CreateToggle("Wall Check", Settings.WallCheck, function(v) Settings.WallCheck = v end, CombatTab)
 CreateToggle("Invisible Check", Settings.InvisibleCheck, function(v) Settings.InvisibleCheck = v end, CombatTab)
 CreateToggle("ForceField Check", Settings.ForceFieldCheck, function(v) Settings.ForceFieldCheck = v end, CombatTab)
 
 CreateToggle("Enable ESP", Settings.EspEnabled, function(v) Settings.EspEnabled = v end, VisualsTab)
-CreateToggle("Target Tracer", Settings.TracerEnabled, function(v) Settings.TracerEnabled = v end, VisualsTab) -- TRACER TOGGLE
+CreateToggle("Target Tracer", Settings.TracerEnabled, function(v) Settings.TracerEnabled = v end, VisualsTab) 
 CreateToggle("Streamable (Hide FOV)", Settings.Streamable, function(v) Settings.Streamable = v end, VisualsTab)
 
 -- Info Tab
@@ -398,7 +407,10 @@ RunService.RenderStepped:Connect(function()
     local isActivated = false
     if Settings.AimbotEnabled then
         if Settings.FovChangeAim then
-            if math.abs(Camera.FieldOfView - DefaultFOV) > 1 then isActivated = true end
+            -- FIXED: Detects if current FOV is significantly lower than base (Zoomed in)
+            if Camera.FieldOfView < (BaseFOV - 5) then 
+                isActivated = true 
+            end
         else
             if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) or UserInputService:IsMouseButtonPressed(Enum.UserInputType.Touch) then
                 isActivated = true
@@ -423,8 +435,14 @@ RunService.RenderStepped:Connect(function()
         local targetPos = foundTarget.Position
         local char = foundTarget.Parent
         
+        -- FIXED: Speed-Based Prediction
+        -- Distance matters: Further targets need more lead time.
         if char.PrimaryPart then
-            targetPos = targetPos + (char.PrimaryPart.Velocity * (Settings.PredictionAmount / 10))
+            local velocity = char.PrimaryPart.Velocity
+            local distance = (Camera.CFrame.Position - targetPos).Magnitude
+            -- Dynamic calculation: Velocity * Distance * Sensitivity Factor
+            local predictionOffset = velocity * (distance / 100) * Settings.PredictionAmount
+            targetPos = targetPos + predictionOffset
         end
 
         local screenPos, _ = Camera:WorldToViewportPoint(foundTarget.Position)
@@ -435,7 +453,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
---// WINDOW TOGGLE (FIXED GLITCHING)
+--// WINDOW TOGGLE
 CloseBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
     RestoreBtn.Visible = true
