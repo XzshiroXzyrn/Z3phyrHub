@@ -22,7 +22,7 @@ local Camera = workspace.CurrentCamera
 --// Settings
 local Settings = {
     AimbotEnabled = false,
-    FovChangeAim = false,
+    OnlyAimOnZoom = false, -- New Feature
     EspEnabled = false,
     TeamCheck = true,
     AliveCheck = true,
@@ -44,6 +44,7 @@ local Theme = {
     Main = Color3.fromRGB(13, 13, 15),
     Secondary = Color3.fromRGB(20, 20, 23),
     Accent = Color3.fromRGB(0, 180, 255),
+    AccentDark = Color3.fromRGB(0, 80, 180), -- For Gradient
     Text = Color3.fromRGB(255, 255, 255),
     TextDark = Color3.fromRGB(160, 160, 160),
     Danger = Color3.fromRGB(255, 65, 65)
@@ -97,15 +98,24 @@ ProtectInstance(ScreenGui)
 local RestoreButton = Instance.new("TextButton")
 RestoreButton.Size = UDim2.new(0, 140, 0, 40)
 RestoreButton.Position = UDim2.new(0.5, -70, 0, 20)
-RestoreButton.BackgroundColor3 = Theme.Secondary
+RestoreButton.BackgroundColor3 = Color3.new(1, 1, 1) -- Set to white so gradient shows
 RestoreButton.Text = "OPEN PREMIUM"
-RestoreButton.TextColor3 = Theme.Accent
+RestoreButton.TextColor3 = Color3.new(1, 1, 1) -- White text looks better on blue gradient
 RestoreButton.Font = Enum.Font.GothamBold
 RestoreButton.TextSize = 13
 RestoreButton.Visible = false
 RestoreButton.Parent = ScreenGui
 Instance.new("UICorner", RestoreButton).CornerRadius = UDim.new(0, 8)
 Instance.new("UIStroke", RestoreButton).Color = Theme.Accent
+
+-- Gradient for Restore Button
+local RestoreGradient = Instance.new("UIGradient")
+RestoreGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Theme.Accent),
+    ColorSequenceKeypoint.new(1, Theme.AccentDark)
+})
+RestoreGradient.Rotation = 90
+RestoreGradient.Parent = RestoreButton
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 550, 0, 380)
@@ -306,7 +316,7 @@ CreateNav("SETTINGS", SettingsTab)
 -- Populate Combat
 CreateSectionLabel("Aimbot Master", CombatTab)
 CreateToggle("Enable Aimbot", Settings.AimbotEnabled, function(v) Settings.AimbotEnabled = v end, CombatTab)
-CreateToggle("Scale FOV with Zoom", Settings.FovChangeAim, function(v) Settings.FovChangeAim = v end, CombatTab)
+CreateToggle("Only Aim On Zoom", Settings.OnlyAimOnZoom, function(v) Settings.OnlyAimOnZoom = v end, CombatTab)
 CreateToggle("Mobile Mode (Auto-Lock)", (Settings.Platform == "Mobile"), function(v) Settings.Platform = v and "Mobile" or "PC" end, CombatTab)
 
 CreateSectionLabel("Checks & Safety", CombatTab)
@@ -453,41 +463,49 @@ RunService.RenderStepped:Connect(function()
 
     -- Update Aimbot
     if Settings.AimbotEnabled then
-        local target = GetClosestPlayer()
-        if target and (UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) or Settings.Platform == "Mobile") then 
-            local targetPos = target.Position
-            local char = target.Parent
-            local root = char:FindFirstChild("HumanoidRootPart")
-            local hum = char:FindFirstChild("Humanoid")
-            
-            local currentPrediction = Settings.PredictionAmount
-            local currentSnap = Settings.SnapStrength
-            
-            -- Dynamic Snap
-            local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
-            if onScreen then
-                local distToCrosshair = (Vector2.new(screenPos.X, screenPos.Y) - ScreenCenter).Magnitude
-                if distToCrosshair < 15 then currentSnap = 0.9 end
-            end
+        -- Logic for "Only Aim On Zoom"
+        local ZoomActive = true
+        if Settings.OnlyAimOnZoom then
+            ZoomActive = Camera.FieldOfView < (InitialFOV - 2) -- If FOV is lower than normal, you are zoomed
+        end
 
-            -- Physics Check
-            if hum and root then
-                local velocityY = root.Velocity.Y
-                if velocityY > 5 or hum:GetState() == Enum.HumanoidStateType.Jumping then
-                    currentPrediction = 0
-                    currentSnap = 1
-                elseif velocityY < -5 then
-                    if not isFalling then fallTimer = tick() isFalling = true end
-                    if (tick() - fallTimer) < 1.34 then currentPrediction = 0 currentSnap = 1 end
-                else isFalling = false end
+        if ZoomActive then
+            local target = GetClosestPlayer()
+            if target and (UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) or Settings.Platform == "Mobile") then 
+                local targetPos = target.Position
+                local char = target.Parent
+                local root = char:FindFirstChild("HumanoidRootPart")
+                local hum = char:FindFirstChild("Humanoid")
+                
+                local currentPrediction = Settings.PredictionAmount
+                local currentSnap = Settings.SnapStrength
+                
+                -- Dynamic Snap
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
+                if onScreen then
+                    local distToCrosshair = (Vector2.new(screenPos.X, screenPos.Y) - ScreenCenter).Magnitude
+                    if distToCrosshair < 15 then currentSnap = 0.9 end
+                end
+
+                -- Physics Check
+                if hum and root then
+                    local velocityY = root.Velocity.Y
+                    if velocityY > 5 or hum:GetState() == Enum.HumanoidStateType.Jumping then
+                        currentPrediction = 0
+                        currentSnap = 1
+                    elseif velocityY < -5 then
+                        if not isFalling then fallTimer = tick() isFalling = true end
+                        if (tick() - fallTimer) < 1.34 then currentPrediction = 0 currentSnap = 1 end
+                    else isFalling = false end
+                end
+                
+                if root and currentPrediction > 0 then
+                    local distance = (target.Position - Camera.CFrame.Position).Magnitude
+                    targetPos = targetPos + (root.Velocity * (distance / (1000 / currentPrediction)))
+                end
+                
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), currentSnap)
             end
-            
-            if root and currentPrediction > 0 then
-                local distance = (target.Position - Camera.CFrame.Position).Magnitude
-                targetPos = targetPos + (root.Velocity * (distance / (1000 / currentPrediction)))
-            end
-            
-            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), currentSnap)
         end
     end
 end)
