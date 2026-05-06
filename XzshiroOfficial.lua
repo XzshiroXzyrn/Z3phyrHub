@@ -16,13 +16,14 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
---// Settings
+--// Settings & Config Logic
 local Settings = {
     AimbotEnabled = false,
-    OnlyAimOnZoom = false, -- New Feature
+    OnlyAimOnZoom = false,
     EspEnabled = false,
     TeamCheck = true,
     AliveCheck = true,
@@ -38,13 +39,42 @@ local Settings = {
     Platform = "PC" 
 }
 
+local ConfigName = "XzPremium_Config.json"
+
+local function SaveSettings()
+    local success, encoded = pcall(function()
+        return HttpService:JSONEncode(Settings)
+    end)
+    if success then
+        writefile(ConfigName, encoded)
+    end
+end
+
+local function LoadSettings()
+    if isfile(ConfigName) then
+        local success, decoded = pcall(function()
+            return HttpService:JSONDecode(readfile(ConfigName))
+        end)
+        if success then
+            for i, v in pairs(decoded) do
+                if Settings[i] ~= nil then
+                    Settings[i] = v
+                end
+            end
+        end
+    end
+end
+
+-- Load config before UI creation
+LoadSettings()
+
 local InitialFOV = Camera.FieldOfView
 local EspTable = {}
 local Theme = {
     Main = Color3.fromRGB(13, 13, 15),
     Secondary = Color3.fromRGB(20, 20, 23),
     Accent = Color3.fromRGB(0, 180, 255),
-    AccentDark = Color3.fromRGB(0, 80, 180), -- For Gradient
+    AccentDark = Color3.fromRGB(0, 80, 180),
     Text = Color3.fromRGB(255, 255, 255),
     TextDark = Color3.fromRGB(160, 160, 160),
     Danger = Color3.fromRGB(255, 65, 65)
@@ -98,9 +128,9 @@ ProtectInstance(ScreenGui)
 local RestoreButton = Instance.new("TextButton")
 RestoreButton.Size = UDim2.new(0, 140, 0, 40)
 RestoreButton.Position = UDim2.new(0.5, -70, 0, 20)
-RestoreButton.BackgroundColor3 = Color3.new(1, 1, 1) -- Set to white so gradient shows
+RestoreButton.BackgroundColor3 = Color3.new(1, 1, 1)
 RestoreButton.Text = "OPEN PREMIUM"
-RestoreButton.TextColor3 = Color3.new(1, 1, 1) -- White text looks better on blue gradient
+RestoreButton.TextColor3 = Color3.new(1, 1, 1)
 RestoreButton.Font = Enum.Font.GothamBold
 RestoreButton.TextSize = 13
 RestoreButton.Visible = false
@@ -108,7 +138,6 @@ RestoreButton.Parent = ScreenGui
 Instance.new("UICorner", RestoreButton).CornerRadius = UDim.new(0, 8)
 Instance.new("UIStroke", RestoreButton).Color = Theme.Accent
 
--- Gradient for Restore Button
 local RestoreGradient = Instance.new("UIGradient")
 RestoreGradient.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, Theme.Accent),
@@ -270,6 +299,7 @@ local function CreateToggle(name, default, callback, parent)
         TweenService:Create(status, TweenInfo.new(0.2), {BackgroundColor3 = active and Theme.Accent or Color3.fromRGB(40, 40, 45)}):Play()
         TweenService:Create(dot, TweenInfo.new(0.2), {Position = active and UDim2.new(1, -15, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)}):Play()
         callback(active)
+        SaveSettings()
     end)
 end
 
@@ -301,7 +331,10 @@ local function CreateInput(name, placeholder, callback, parent)
     input.TextSize = 11
     input.Parent = frame
     Instance.new("UICorner", input).CornerRadius = UDim.new(0, 4)
-    input.FocusLost:Connect(function() callback(input.Text) end)
+    input.FocusLost:Connect(function() 
+        callback(input.Text) 
+        SaveSettings()
+    end)
 end
 
 -- Initialize Tabs
@@ -357,7 +390,8 @@ Info.Parent = SettingsTab
 -- Handle Close/Open
 CloseBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
-    RestoreButton.Visible = true
+    -- Hide restore button if streamable is active
+    RestoreButton.Visible = not Settings.Streamable
 end)
 
 RestoreButton.MouseButton1Click:Connect(function()
@@ -443,6 +477,11 @@ RunService.RenderStepped:Connect(function()
     FovCircle.Position = ScreenCenter
     FovCircle.Visible = Settings.AimbotEnabled and not Settings.Streamable
     
+    -- Ensure Restore Button visibility respects Streamable Setting
+    if not MainFrame.Visible then
+        RestoreButton.Visible = not Settings.Streamable
+    end
+
     -- Update ESP
     for player, data in pairs(EspTable) do
         local char = player.Character
@@ -463,10 +502,9 @@ RunService.RenderStepped:Connect(function()
 
     -- Update Aimbot
     if Settings.AimbotEnabled then
-        -- Logic for "Only Aim On Zoom"
         local ZoomActive = true
         if Settings.OnlyAimOnZoom then
-            ZoomActive = Camera.FieldOfView < (InitialFOV - 2) -- If FOV is lower than normal, you are zoomed
+            ZoomActive = Camera.FieldOfView < (InitialFOV - 2)
         end
 
         if ZoomActive then
@@ -505,7 +543,4 @@ RunService.RenderStepped:Connect(function()
                 end
                 
                 Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), currentSnap)
-            end
-        end
-    end
-end)
+   
