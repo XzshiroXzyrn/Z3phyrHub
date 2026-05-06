@@ -22,32 +22,11 @@ local Settings = {
     FovRadius = 100,
     PredictionAmount = 1.65, 
     SnapStrength = 0.15,
-    StickyAim = 0.5, -- NEW
+    StickyAim = 0.5,
     FovColor = Color3.fromRGB(0, 255, 200),
     AimPart = "Head",
-    Platform = "PC" 
+    Platform = "PC" -- "PC" or "Mobile"
 }
-
-local function SaveConfig()
-    if writefile then
-        pcall(function()
-            writefile(ConfigFile, HttpService:JSONEncode(Settings))
-        end)
-    end
-end
-
-local function LoadConfig()
-    if isfile and isfile(ConfigFile) then
-        pcall(function()
-            local decoded = HttpService:JSONDecode(readfile(ConfigFile))
-            for i, v in pairs(decoded) do
-                Settings[i] = v
-            end
-        end)
-    end
-end
-
-LoadConfig()
 
 --// THEME
 local Theme = {
@@ -84,7 +63,7 @@ ScreenGui.Name = "XzPremium_" .. math.random(100,999)
 ScreenGui.ResetOnSpawn = false
 ProtectInstance(ScreenGui)
 
--- Restore Button (The "Open Premium" button)
+-- Restore Button
 local RestoreBtn = Instance.new("TextButton")
 RestoreBtn.Size = UDim2.new(0, 160, 0, 40)
 RestoreBtn.Position = UDim2.new(0.5, -80, 0, 20)
@@ -99,8 +78,8 @@ Instance.new("UICorner", RestoreBtn).CornerRadius = UDim.new(0, 8)
 ApplyGradient(RestoreBtn)
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 550, 0, 380)
-MainFrame.Position = UDim2.new(0.5, -275, 0.5, -190)
+MainFrame.Size = UDim2.new(0, 550, 0, 400) -- Increased height for extra top space
+MainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
 MainFrame.BackgroundColor3 = Theme.Main
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -108,31 +87,39 @@ MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 
-local Stroke = Instance.new("UIStroke")
-Stroke.Color = Theme.Secondary
-Stroke.Thickness = 2
-Stroke.Parent = MainFrame
+-- Top Header Text (XzshiroOfficials)
+local HeaderLabel = Instance.new("TextLabel")
+HeaderLabel.Size = UDim2.new(0, 200, 0, 40)
+HeaderLabel.Position = UDim2.new(0, 15, 0, 0)
+HeaderLabel.BackgroundTransparency = 1
+HeaderLabel.Text = "XzshiroOfficials"
+HeaderLabel.TextColor3 = Theme.Accent
+HeaderLabel.Font = Enum.Font.LuckiestGuy -- Alternative to "Aurora" style
+HeaderLabel.TextSize = 18
+HeaderLabel.TextXAlignment = Enum.TextXAlignment.Left
+HeaderLabel.Parent = MainFrame
 
--- Close Button
+-- Close Button (With more top-space as requested)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 5)
+CloseBtn.Position = UDim2.new(1, -35, 0, 8) -- Shifted down slightly
 CloseBtn.BackgroundTransparency = 1
 CloseBtn.Text = "×"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
-CloseBtn.TextSize = 24
+CloseBtn.TextSize = 28
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.Parent = MainFrame
 
 local SideBar = Instance.new("Frame")
-SideBar.Size = UDim2.new(0, 160, 1, 0)
+SideBar.Size = UDim2.new(0, 160, 1, -40)
+SideBar.Position = UDim2.new(0, 0, 0, 40)
 SideBar.BackgroundColor3 = Theme.Secondary
 SideBar.Parent = MainFrame
 Instance.new("UICorner", SideBar).CornerRadius = UDim.new(0, 10)
 
 local ContentArea = Instance.new("Frame")
-ContentArea.Size = UDim2.new(1, -170, 1, -20)
-ContentArea.Position = UDim2.new(0, 170, 0, 10)
+ContentArea.Size = UDim2.new(1, -170, 1, -50)
+ContentArea.Position = UDim2.new(0, 170, 0, 45)
 ContentArea.BackgroundTransparency = 1
 ContentArea.Parent = MainFrame
 
@@ -142,7 +129,10 @@ local function CreateTab(name)
     f.Size = UDim2.new(1, 0, 1, 0)
     f.BackgroundTransparency = 1
     f.Visible = false
-    f.ScrollBarThickness = 0
+    f.ScrollBarThickness = 2
+    f.ScrollBarImageColor3 = Theme.Accent
+    f.CanvasSize = UDim2.new(0,0,0,0)
+    f.AutomaticCanvasSize = Enum.AutomaticSize.Y
     f.Parent = ContentArea
     local l = Instance.new("UIListLayout")
     l.Padding = UDim.new(0, 8)
@@ -162,7 +152,7 @@ local function CreateNav(name, tab, iconId)
     btn.Size = UDim2.new(1, -20, 0, 40)
     local count = 0
     for _, v in pairs(SideBar:GetChildren()) do if v:IsA("TextButton") then count = count + 1 end end
-    btn.Position = UDim2.new(0, 10, 0, 60 + (count * 45))
+    btn.Position = UDim2.new(0, 10, 0, 10 + (count * 45))
     btn.BackgroundColor3 = Color3.fromRGB(30,30,35)
     btn.BackgroundTransparency = 1
     btn.Text = "      " .. name
@@ -180,11 +170,36 @@ local function CreateNav(name, tab, iconId)
     icon.ImageColor3 = Theme.TextDark
     icon.Parent = btn
 
-    ApplyGradient(btn) -- Category Gradient requested
-
     btn.MouseButton1Click:Connect(function()
         for _, t in pairs(Tabs) do t.Visible = false end
         tab.Visible = true
+    end)
+end
+
+local function CreateToggle(name, default, callback, parent)
+    local t = Instance.new("TextButton")
+    t.Size = UDim2.new(1, -10, 0, 35)
+    t.BackgroundColor3 = Theme.Secondary
+    t.Text = "  " .. name
+    t.Font = Enum.Font.Gotham
+    t.TextSize = 13
+    t.TextColor3 = Theme.TextDark
+    t.TextXAlignment = Enum.TextXAlignment.Left
+    t.Parent = parent
+    Instance.new("UICorner", t)
+
+    local indicator = Instance.new("Frame")
+    indicator.Size = UDim2.new(0, 30, 0, 15)
+    indicator.Position = UDim2.new(1, -40, 0.5, -7)
+    indicator.BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(50,50,50)
+    indicator.Parent = t
+    Instance.new("UICorner", indicator).CornerRadius = UDim.new(1, 0)
+
+    local state = default
+    t.MouseButton1Click:Connect(function()
+        state = not state
+        TweenService:Create(indicator, TweenInfo.new(0.2), {BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(50,50,50)}):Play()
+        callback(state)
     end)
 end
 
@@ -234,7 +249,6 @@ local function CreateSlider(name, min, max, default, callback, parent)
         box.Text = tostring(val)
         fill.Size = UDim2.new((val-min)/(max-min), 0, 1, 0)
         callback(val)
-        SaveConfig()
     end
 
     sliderBar.InputBegan:Connect(function(input)
@@ -246,44 +260,46 @@ local function CreateSlider(name, min, max, default, callback, parent)
                 local bSize = sliderBar.AbsoluteSize.X
                 local percent = math.clamp((mPos - bPos) / bSize, 0, 1)
                 update(min + (max - min) * percent)
-                if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
-                    connection:Disconnect()
-                end
+                if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then connection:Disconnect() end
             end)
         end
     end)
-
-    box.FocusLost:Connect(function()
-        local n = tonumber(box.Text)
-        if n then update(n) end
-    end)
 end
 
-local function CreateToggle(name, default, callback, parent)
-    local t = Instance.new("TextButton")
-    t.Size = UDim2.new(1, -10, 0, 35)
-    t.BackgroundColor3 = Theme.Secondary
-    t.Text = "  " .. name
-    t.Font = Enum.Font.Gotham
-    t.TextSize = 13
-    t.TextColor3 = Theme.TextDark
-    t.TextXAlignment = Enum.TextXAlignment.Left
-    t.Parent = parent
-    Instance.new("UICorner", t)
+local function CreateSelector(name, options, callback, parent)
+    local container = Instance.new("Frame")
+    container.Size = UDim2.new(1, -10, 0, 35)
+    container.BackgroundColor3 = Theme.Secondary
+    container.Parent = parent
+    Instance.new("UICorner", container)
 
-    local indicator = Instance.new("Frame")
-    indicator.Size = UDim2.new(0, 30, 0, 15)
-    indicator.Position = UDim2.new(1, -40, 0.5, -7)
-    indicator.BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(50,50,50)
-    indicator.Parent = t
-    Instance.new("UICorner", indicator).CornerRadius = UDim.new(1, 0)
+    local label = Instance.new("TextLabel")
+    label.Text = "  " .. name
+    label.Size = UDim2.new(0.4, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Theme.TextDark
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = container
 
-    local state = default
-    t.MouseButton1Click:Connect(function()
-        state = not state
-        TweenService:Create(indicator, TweenInfo.new(0.2), {BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(50,50,50)}):Play()
-        callback(state)
-        SaveConfig()
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.5, 0, 0.7, 0)
+    btn.Position = UDim2.new(0.45, 0, 0.15, 0)
+    btn.BackgroundColor3 = Theme.Main
+    btn.Text = Settings.Platform
+    btn.TextColor3 = Theme.Accent
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.Parent = container
+    Instance.new("UICorner", btn)
+
+    local current = 1
+    btn.MouseButton1Click:Connect(function()
+        current = current + 1
+        if current > #options then current = 1 end
+        btn.Text = options[current]
+        callback(options[current])
     end)
 end
 
@@ -292,25 +308,50 @@ CreateNav("COMBAT", CombatTab, "rbxassetid://10747373176")
 CreateNav("VISUALS", VisualsTab, "rbxassetid://10709812534")
 CreateNav("INFO", InfoTab, "rbxassetid://10723346959")
 
+-- Combat Tab
+CreateSelector("Platform Mode", {"PC", "Mobile"}, function(v) Settings.Platform = v end, CombatTab)
 CreateToggle("Enable Aimbot", Settings.AimbotEnabled, function(v) Settings.AimbotEnabled = v end, CombatTab)
 CreateSlider("FOV Radius", 10, 800, Settings.FovRadius, function(v) Settings.FovRadius = v end, CombatTab)
 CreateSlider("Prediction", 0, 10, Settings.PredictionAmount, function(v) Settings.PredictionAmount = v end, CombatTab)
 CreateSlider("Snap Strength", 0, 1, Settings.SnapStrength, function(v) Settings.SnapStrength = v end, CombatTab)
-CreateSlider("Sticky Aim", 0, 1, Settings.StickyAim, function(v) Settings.StickyAim = v end, CombatTab)
 CreateToggle("Wall Check", Settings.WallCheck, function(v) Settings.WallCheck = v end, CombatTab)
+CreateToggle("Invisible Check", Settings.InvisibleCheck, function(v) Settings.InvisibleCheck = v end, CombatTab)
+CreateToggle("ForceField Check", Settings.ForceFieldCheck, function(v) Settings.ForceFieldCheck = v end, CombatTab)
 
+-- Visuals Tab
 CreateToggle("Enable ESP", Settings.EspEnabled, function(v) Settings.EspEnabled = v end, VisualsTab)
-CreateToggle("Streamable", Settings.Streamable, function(v) Settings.Streamable = v end, VisualsTab)
+CreateToggle("Streamable (Hide FOV)", Settings.Streamable, function(v) Settings.Streamable = v end, VisualsTab)
 
---// LOGIC
+-- Info Tab
+local function AddInfo(txt)
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.new(1, -10, 0, 30)
+    l.BackgroundTransparency = 1
+    l.Text = "  " .. txt
+    l.TextColor3 = Theme.TextDark
+    l.Font = Enum.Font.Gotham
+    l.TextSize = 14
+    l.TextXAlignment = Enum.TextXAlignment.Left
+    l.Parent = InfoTab
+end
+
+AddInfo("Owner: XzshiroOfficials")
+AddInfo("Made in: 4/6/2026")
+AddInfo("Status: Active")
+AddInfo("Version: Premium V4")
+
+--// AIMBOT LOGIC
 local FovCircle = Drawing.new("Circle")
 FovCircle.Thickness = 1.5
 FovCircle.Color = Theme.Accent
+FovCircle.Filled = false -- Requested: Not filled
 
 local function GetClosestPlayer()
     local target = nil
     local shortestDist = Settings.FovRadius
-    local center = UserInputService:GetMouseLocation()
+    
+    -- PLATFORM CHECK: Cursor for PC, Center for Mobile
+    local center = (Settings.Platform == "PC") and UserInputService:GetMouseLocation() or (Camera.ViewportSize / 2)
 
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Settings.AimPart) then
@@ -318,6 +359,13 @@ local function GetClosestPlayer()
             
             local char = p.Character
             local part = char[Settings.AimPart]
+            
+            -- INVISIBLE CHECK
+            if Settings.InvisibleCheck and char:FindFirstChild("Head") and char.Head.Transparency > 0.5 then continue end
+            
+            -- FORCEFIELD CHECK
+            if Settings.ForceFieldCheck and char:FindFirstChildOfClass("ForceField") then continue end
+
             local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
             
             if onScreen then
@@ -337,11 +385,13 @@ local function GetClosestPlayer()
 end
 
 RunService.RenderStepped:Connect(function()
+    local center = (Settings.Platform == "PC") and UserInputService:GetMouseLocation() or (Camera.ViewportSize / 2)
+    
     FovCircle.Visible = Settings.AimbotEnabled and not Settings.Streamable
     FovCircle.Radius = Settings.FovRadius
-    FovCircle.Position = UserInputService:GetMouseLocation()
+    FovCircle.Position = center
 
-    if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+    if Settings.AimbotEnabled and (UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) or UserInputService:IsMouseButtonPressed(Enum.UserInputType.Touch)) then
         local target = GetClosestPlayer()
         if target then
             local targetPos = target.Position
@@ -350,14 +400,11 @@ RunService.RenderStepped:Connect(function()
             -- Prediction
             targetPos = targetPos + (velocity * (Settings.PredictionAmount / 10))
 
-            -- Logic for Snap vs Sticky
+            -- Logic for Snap
             local screenPos, _ = Camera:WorldToViewportPoint(target.Position)
-            local mousePos = UserInputService:GetMouseLocation()
-            local distToCenter = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+            local distToCenter = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
             
-            -- If already very close to target, use StickyAim, else use SnapStrength
             local power = (distToCenter < 15) and Settings.StickyAim or Settings.SnapStrength
-            
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), power)
         end
     end
