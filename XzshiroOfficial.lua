@@ -33,8 +33,8 @@ local Settings = {
     Streamable = false,
     FovRadius = 100,
     PredictionAmount = 1.65, 
-    SnapStrength = 0.15,
-    FovColor = Color3.fromRGB(0, 180, 255),
+    SnapStrength = 0.15, -- Speed to reach target
+    LockStrength = 0.85, -- Strength once on target
     AimPart = "Head",
     Platform = "PC" 
 }
@@ -65,7 +65,6 @@ local function LoadSettings()
     end
 end
 
--- Load config before UI creation
 LoadSettings()
 
 local InitialFOV = Camera.FieldOfView
@@ -124,7 +123,7 @@ ScreenGui.Name = "XzPremium_" .. math.random(1000, 9999)
 ScreenGui.ResetOnSpawn = false
 ProtectInstance(ScreenGui)
 
--- Restore Button
+-- Restore Button (Logic updated for Streamable transparency)
 local RestoreButton = Instance.new("TextButton")
 RestoreButton.Size = UDim2.new(0, 140, 0, 40)
 RestoreButton.Position = UDim2.new(0.5, -70, 0, 20)
@@ -135,8 +134,10 @@ RestoreButton.Font = Enum.Font.GothamBold
 RestoreButton.TextSize = 13
 RestoreButton.Visible = false
 RestoreButton.Parent = ScreenGui
-Instance.new("UICorner", RestoreButton).CornerRadius = UDim.new(0, 8)
-Instance.new("UIStroke", RestoreButton).Color = Theme.Accent
+local RestoreCorner = Instance.new("UICorner", RestoreButton)
+RestoreCorner.CornerRadius = UDim.new(0, 8)
+local RestoreStroke = Instance.new("UIStroke", RestoreButton)
+RestoreStroke.Color = Theme.Accent
 
 local RestoreGradient = Instance.new("UIGradient")
 RestoreGradient.Color = ColorSequence.new({
@@ -370,6 +371,10 @@ CreateInput("Smoothness (0.1-0.7)", tostring(Settings.SnapStrength), function(v)
     local n = tonumber(v)
     if n then Settings.SnapStrength = math.clamp(n, 0, 0.7) end
 end, CombatTab)
+CreateInput("Lock Strength (0.1-1)", tostring(Settings.LockStrength), function(v)
+    local n = tonumber(v)
+    if n then Settings.LockStrength = math.clamp(n, 0, 1) end
+end, CombatTab)
 
 -- Populate Visuals
 CreateSectionLabel("ESP Features", VisualsTab)
@@ -390,8 +395,7 @@ Info.Parent = SettingsTab
 -- Handle Close/Open
 CloseBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = false
-    -- Hide restore button if streamable is active
-    RestoreButton.Visible = not Settings.Streamable
+    RestoreButton.Visible = true -- Logic for visibility handled in RenderStepped
 end)
 
 RestoreButton.MouseButton1Click:Connect(function()
@@ -477,9 +481,20 @@ RunService.RenderStepped:Connect(function()
     FovCircle.Position = ScreenCenter
     FovCircle.Visible = Settings.AimbotEnabled and not Settings.Streamable
     
-    -- Ensure Restore Button visibility respects Streamable Setting
+    -- Handle Restore Button Visibility for Streamable Mode
     if not MainFrame.Visible then
-        RestoreButton.Visible = not Settings.Streamable
+        RestoreButton.Visible = true
+        if Settings.Streamable then
+            RestoreButton.BackgroundTransparency = 1
+            RestoreButton.TextTransparency = 1
+            RestoreStroke.Enabled = false
+        else
+            RestoreButton.BackgroundTransparency = 0
+            RestoreButton.TextTransparency = 0
+            RestoreStroke.Enabled = true
+        end
+    else
+        RestoreButton.Visible = false
     end
 
     -- Update ESP
@@ -518,29 +533,17 @@ RunService.RenderStepped:Connect(function()
                 local currentPrediction = Settings.PredictionAmount
                 local currentSnap = Settings.SnapStrength
                 
-                -- Dynamic Snap
+                -- Lock-On Logic: If crosshair is close to the target, use LockStrength
                 local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
                 if onScreen then
                     local distToCrosshair = (Vector2.new(screenPos.X, screenPos.Y) - ScreenCenter).Magnitude
-                    if distToCrosshair < 15 then currentSnap = 0.9 end
+                    if distToCrosshair < 25 then 
+                        currentSnap = Settings.LockStrength 
+                    end
                 end
 
-                -- Physics Check
+                -- Physics/Airborne Check
                 if hum and root then
                     local velocityY = root.Velocity.Y
                     if velocityY > 5 or hum:GetState() == Enum.HumanoidStateType.Jumping then
-                        currentPrediction = 0
-                        currentSnap = 1
-                    elseif velocityY < -5 then
-                        if not isFalling then fallTimer = tick() isFalling = true end
-                        if (tick() - fallTimer) < 1.34 then currentPrediction = 0 currentSnap = 1 end
-                    else isFalling = false end
-                end
-                
-                if root and currentPrediction > 0 then
-                    local distance = (target.Position - Camera.CFrame.Position).Magnitude
-                    targetPos = targetPos + (root.Velocity * (distance / (1000 / currentPrediction)))
-                end
-                
-                Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), currentSnap)
-   
+                        curren
