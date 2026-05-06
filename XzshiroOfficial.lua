@@ -3,15 +3,13 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
---// SETTINGS & CONFIG
-local ConfigFile = "XzConfig.json"
+--// SETTINGS
 local Settings = {
     AimbotEnabled = false,
-    FovChangeAim = false,
+    FovChangeAim = false, -- Only aim when zooming/FOV changes
     EspEnabled = false,
     TeamCheck = true,
     AliveCheck = true,
@@ -25,8 +23,10 @@ local Settings = {
     StickyAim = 0.5,
     FovColor = Color3.fromRGB(0, 255, 200),
     AimPart = "Head",
-    Platform = "PC" -- "PC" or "Mobile"
+    Platform = "PC"
 }
+
+local DefaultFOV = Camera.FieldOfView
 
 --// THEME
 local Theme = {
@@ -46,14 +46,13 @@ local function ApplyGradient(obj)
         ColorSequenceKeypoint.new(1, Theme.AccentDark)
     })
     Gradient.Parent = obj
-    return Gradient
 end
 
 local function ProtectInstance(instance)
     pcall(function()
         if gethui then instance.Parent = gethui()
         elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then instance.Parent = game:GetService("CoreGui")
-        else instance.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui") end
+        else instance.Parent = LocalPlayer:WaitForChild("PlayerGui") end
     end)
 end
 
@@ -63,7 +62,16 @@ ScreenGui.Name = "XzPremium_" .. math.random(100,999)
 ScreenGui.ResetOnSpawn = false
 ProtectInstance(ScreenGui)
 
--- Restore Button
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 550, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
+MainFrame.BackgroundColor3 = Theme.Main
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+
 local RestoreBtn = Instance.new("TextButton")
 RestoreBtn.Size = UDim2.new(0, 160, 0, 40)
 RestoreBtn.Position = UDim2.new(0.5, -80, 0, 20)
@@ -77,34 +85,22 @@ RestoreBtn.Parent = ScreenGui
 Instance.new("UICorner", RestoreBtn).CornerRadius = UDim.new(0, 8)
 ApplyGradient(RestoreBtn)
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 550, 0, 400) -- Increased height for extra top space
-MainFrame.Position = UDim2.new(0.5, -275, 0.5, -200)
-MainFrame.BackgroundColor3 = Theme.Main
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
-
--- Top Header Text (XzshiroOfficials)
 local HeaderLabel = Instance.new("TextLabel")
 HeaderLabel.Size = UDim2.new(0, 200, 0, 40)
 HeaderLabel.Position = UDim2.new(0, 15, 0, 0)
 HeaderLabel.BackgroundTransparency = 1
 HeaderLabel.Text = "XzshiroOfficials"
 HeaderLabel.TextColor3 = Theme.Accent
-HeaderLabel.Font = Enum.Font.LuckiestGuy -- Alternative to "Aurora" style
+HeaderLabel.Font = Enum.Font.LuckiestGuy
 HeaderLabel.TextSize = 18
 HeaderLabel.TextXAlignment = Enum.TextXAlignment.Left
 HeaderLabel.Parent = MainFrame
 
--- Close Button (With more top-space as requested)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 8) -- Shifted down slightly
+CloseBtn.Position = UDim2.new(1, -35, 0, 8)
 CloseBtn.BackgroundTransparency = 1
-CloseBtn.Text = "×"
+CloseBtn.Text = "Ã—"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
 CloseBtn.TextSize = 28
 CloseBtn.Font = Enum.Font.GothamBold
@@ -146,7 +142,7 @@ local VisualsTab = CreateTab("Visuals")
 local InfoTab = CreateTab("Info")
 CombatTab.Visible = true
 
---// GUI COMPONENTS
+--// COMPONENTS
 local function CreateNav(name, tab, iconId)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -20, 0, 40)
@@ -238,11 +234,10 @@ local function CreateSlider(name, min, max, default, callback, parent)
     sliderBar.Parent = container
     
     local fill = Instance.new("Frame")
-    fill.Size = UDim2.new((default-min)/(max-min), 0, 1, 0)
+    fill.Size = UDim2.new(math.clamp((default-min)/(max-min), 0, 1), 0, 1, 0)
     fill.BackgroundColor3 = Theme.Accent
     fill.BorderSizePixel = 0
     fill.Parent = sliderBar
-    ApplyGradient(fill)
 
     local function update(val)
         val = math.clamp(math.round(val * 100) / 100, min, max)
@@ -250,6 +245,11 @@ local function CreateSlider(name, min, max, default, callback, parent)
         fill.Size = UDim2.new((val-min)/(max-min), 0, 1, 0)
         callback(val)
     end
+
+    box.FocusLost:Connect(function()
+        local n = tonumber(box.Text)
+        if n then update(n) else box.Text = tostring(min) end
+    end)
 
     sliderBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -303,14 +303,14 @@ local function CreateSelector(name, options, callback, parent)
     end)
 end
 
---// POPULATE UI
+--// POPULATE
 CreateNav("COMBAT", CombatTab, "rbxassetid://10747373176")
 CreateNav("VISUALS", VisualsTab, "rbxassetid://10709812534")
 CreateNav("INFO", InfoTab, "rbxassetid://10723346959")
 
--- Combat Tab
 CreateSelector("Platform Mode", {"PC", "Mobile"}, function(v) Settings.Platform = v end, CombatTab)
 CreateToggle("Enable Aimbot", Settings.AimbotEnabled, function(v) Settings.AimbotEnabled = v end, CombatTab)
+CreateToggle("FOV-Change Activation", Settings.FovChangeAim, function(v) Settings.FovChangeAim = v end, CombatTab)
 CreateSlider("FOV Radius", 10, 800, Settings.FovRadius, function(v) Settings.FovRadius = v end, CombatTab)
 CreateSlider("Prediction", 0, 10, Settings.PredictionAmount, function(v) Settings.PredictionAmount = v end, CombatTab)
 CreateSlider("Snap Strength", 0, 1, Settings.SnapStrength, function(v) Settings.SnapStrength = v end, CombatTab)
@@ -318,7 +318,6 @@ CreateToggle("Wall Check", Settings.WallCheck, function(v) Settings.WallCheck = 
 CreateToggle("Invisible Check", Settings.InvisibleCheck, function(v) Settings.InvisibleCheck = v end, CombatTab)
 CreateToggle("ForceField Check", Settings.ForceFieldCheck, function(v) Settings.ForceFieldCheck = v end, CombatTab)
 
--- Visuals Tab
 CreateToggle("Enable ESP", Settings.EspEnabled, function(v) Settings.EspEnabled = v end, VisualsTab)
 CreateToggle("Streamable (Hide FOV)", Settings.Streamable, function(v) Settings.Streamable = v end, VisualsTab)
 
@@ -334,23 +333,25 @@ local function AddInfo(txt)
     l.TextXAlignment = Enum.TextXAlignment.Left
     l.Parent = InfoTab
 end
-
 AddInfo("Owner: XzshiroOfficials")
-AddInfo("Made in: 4/6/2026")
 AddInfo("Status: Active")
-AddInfo("Version: Premium V4")
+AddInfo("Version: Premium V4 Fixed")
 
 --// AIMBOT LOGIC
 local FovCircle = Drawing.new("Circle")
 FovCircle.Thickness = 1.5
 FovCircle.Color = Theme.Accent
-FovCircle.Filled = false -- Requested: Not filled
+FovCircle.Filled = false
+
+local function IsVisible(part, char)
+    if not Settings.WallCheck then return true end
+    local cast = Camera:GetPartsObscuringTarget({part.Position}, {LocalPlayer.Character, char})
+    return #cast == 0
+end
 
 local function GetClosestPlayer()
     local target = nil
     local shortestDist = Settings.FovRadius
-    
-    -- PLATFORM CHECK: Cursor for PC, Center for Mobile
     local center = (Settings.Platform == "PC") and UserInputService:GetMouseLocation() or (Camera.ViewportSize / 2)
 
     for _, p in pairs(Players:GetPlayers()) do
@@ -358,25 +359,20 @@ local function GetClosestPlayer()
             if Settings.TeamCheck and p.Team == LocalPlayer.Team then continue end
             
             local char = p.Character
-            local part = char[Settings.AimPart]
-            
-            -- INVISIBLE CHECK
             if Settings.InvisibleCheck and char:FindFirstChild("Head") and char.Head.Transparency > 0.5 then continue end
-            
-            -- FORCEFIELD CHECK
             if Settings.ForceFieldCheck and char:FindFirstChildOfClass("ForceField") then continue end
 
+            local part = char[Settings.AimPart]
             local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
             
             if onScreen then
                 local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                 if dist < shortestDist then
-                    if Settings.WallCheck then
-                        local cast = Camera:GetPartsObscuringTarget({part.Position}, {LocalPlayer.Character, char})
-                        if #cast > 0 then continue end
+                    -- Optimization: Check visibility only for the potential candidate
+                    if IsVisible(part, char) then
+                        shortestDist = dist
+                        target = part
                     end
-                    shortestDist = dist
-                    target = part
                 end
             end
         end
@@ -391,20 +387,33 @@ RunService.RenderStepped:Connect(function()
     FovCircle.Radius = Settings.FovRadius
     FovCircle.Position = center
 
-    if Settings.AimbotEnabled and (UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) or UserInputService:IsMouseButtonPressed(Enum.UserInputType.Touch)) then
+    -- Detect activation (Keypress OR FOV Change)
+    local isActivated = false
+    if Settings.AimbotEnabled then
+        if Settings.FovChangeAim then
+            if math.abs(Camera.FieldOfView - DefaultFOV) > 1 then isActivated = true end
+        else
+            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) or UserInputService:IsMouseButtonPressed(Enum.UserInputType.Touch) then
+                isActivated = true
+            end
+        end
+    end
+
+    if isActivated then
         local target = GetClosestPlayer()
         if target then
             local targetPos = target.Position
-            local velocity = target.Parent.PrimaryPart.Velocity
+            local char = target.Parent
             
-            -- Prediction
-            targetPos = targetPos + (velocity * (Settings.PredictionAmount / 10))
+            -- Improved Prediction
+            if char.PrimaryPart then
+                targetPos = targetPos + (char.PrimaryPart.Velocity * (Settings.PredictionAmount / 10))
+            end
 
-            -- Logic for Snap
             local screenPos, _ = Camera:WorldToViewportPoint(target.Position)
             local distToCenter = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+            local power = (distToCenter < 20) and Settings.StickyAim or Settings.SnapStrength
             
-            local power = (distToCenter < 15) and Settings.StickyAim or Settings.SnapStrength
             Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, targetPos), power)
         end
     end
