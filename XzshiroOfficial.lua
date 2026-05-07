@@ -10,6 +10,7 @@ local Camera = workspace.CurrentCamera
 local Settings = {
     -- Combat Logic
     AimbotEnabled = false,
+    NpcAimbotEnabled = true,
     AimPart = "Head",
     PredictionAmount = 0.165,
     SnapStrength = 0.15,
@@ -17,14 +18,19 @@ local Settings = {
     
     -- Activation Settings
     Platform = "PC",
-    FovChangeAim = false, -- Zoom to aim
+    FovChangeAim = false, 
     
     -- FOV & Visuals
     FovRadius = 100,
     FovColor = Color3.fromRGB(0, 255, 200),
-    Streamable = false, -- Hide FOV from recording
+    Streamable = false, 
     TracerEnabled = false,
+    
+    -- ESP SETTINGS (UPDATED)
     EspEnabled = false,
+    BoxEsp = false,
+    SkeletonEsp = false,
+    HealthBar = false,
     
     -- Filters/Checks
     TeamCheck = true,
@@ -42,7 +48,9 @@ local Theme = {
     AccentDark = Color3.fromRGB(0, 60, 150),
     Text = Color3.fromRGB(255, 255, 255),
     TextDark = Color3.fromRGB(160, 160, 160),
-    Tracer = Color3.fromRGB(0, 200, 255)
+    Tracer = Color3.fromRGB(0, 200, 255),
+    HealthHigh = Color3.fromRGB(0, 255, 0),
+    HealthLow = Color3.fromRGB(255, 0, 0)
 }
 
 --// UTILS & TRACKING
@@ -70,6 +78,52 @@ local function ProtectInstance(instance)
         elseif game:GetService("CoreGui"):FindFirstChild("RobloxGui") then instance.Parent = game:GetService("CoreGui")
         else instance.Parent = LocalPlayer:WaitForChild("PlayerGui") end
     end)
+end
+
+--// ESP OBJECT STORAGE
+local ESP_Objects = {}
+
+local function CreateEspCache(player)
+    if ESP_Objects[player] then return end
+    ESP_Objects[player] = {
+        Box = Drawing.new("Square"),
+        HealthBar = Drawing.new("Line"),
+        HealthBarBG = Drawing.new("Line"),
+        Skeletons = {}
+    }
+    
+    local obj = ESP_Objects[player]
+    obj.Box.Thickness = 1
+    obj.Box.Filled = false
+    obj.Box.Color = Theme.Accent
+    obj.Box.Transparency = 1
+
+    obj.HealthBarBG.Thickness = 3
+    obj.HealthBarBG.Color = Color3.new(0,0,0)
+    
+    obj.HealthBar.Thickness = 2
+    obj.HealthBar.Color = Theme.HealthHigh
+
+    -- Create 12 lines for R15 support
+    for i = 1, 12 do
+        local line = Drawing.new("Line")
+        line.Thickness = 1
+        line.Color = Color3.new(1,1,1)
+        line.Transparency = 1
+        table.insert(obj.Skeletons, line)
+    end
+end
+
+local function RemoveEspCache(player)
+    if ESP_Objects[player] then
+        ESP_Objects[player].Box:Remove()
+        ESP_Objects[player].HealthBar:Remove()
+        ESP_Objects[player].HealthBarBG:Remove()
+        for _, line in pairs(ESP_Objects[player].Skeletons) do
+            line:Remove()
+        end
+        ESP_Objects[player] = nil
+    end
 end
 
 --// GUI SETUP
@@ -317,6 +371,7 @@ CreateNav("INFO", InfoTab, "rbxassetid://10723346959")
 
 -- Combat Tab
 CreateToggle("Enable Aimbot", Settings.AimbotEnabled, function(v) Settings.AimbotEnabled = v end, CombatTab)
+CreateToggle("Target NPCs/Bots", Settings.NpcAimbotEnabled, function(v) Settings.NpcAimbotEnabled = v end, CombatTab)
 CreateSelector("Aim Part", {"Head", "UpperTorso", "HumanoidRootPart"}, Settings.AimPart, function(v) Settings.AimPart = v end, CombatTab)
 CreateSlider("FOV Radius", 10, 800, Settings.FovRadius, function(v) Settings.FovRadius = v end, CombatTab)
 CreateSlider("Prediction Lead", 0, 5, Settings.PredictionAmount, function(v) Settings.PredictionAmount = v end, CombatTab)
@@ -324,7 +379,10 @@ CreateSlider("Snap Strength", 0, 1, Settings.SnapStrength, function(v) Settings.
 CreateSlider("Sticky Power", 0, 1, Settings.StickyAim, function(v) Settings.StickyAim = v end, CombatTab)
 
 -- Visuals Tab
-CreateToggle("Enable ESP", Settings.EspEnabled, function(v) Settings.EspEnabled = v end, VisualsTab)
+CreateToggle("Global ESP Master", Settings.EspEnabled, function(v) Settings.EspEnabled = v end, VisualsTab)
+CreateToggle("Box ESP", Settings.BoxEsp, function(v) Settings.BoxEsp = v end, VisualsTab)
+CreateToggle("Skeleton ESP", Settings.SkeletonEsp, function(v) Settings.SkeletonEsp = v end, VisualsTab)
+CreateToggle("Health Bar", Settings.HealthBar, function(v) Settings.HealthBar = v end, VisualsTab)
 CreateToggle("Target Tracer", Settings.TracerEnabled, function(v) Settings.TracerEnabled = v end, VisualsTab) 
 CreateToggle("Streamable (Hide FOV)", Settings.Streamable, function(v) Settings.Streamable = v end, VisualsTab)
 
@@ -371,22 +429,35 @@ local function IsVisible(part, char)
     return #cast == 0
 end
 
-local function GetClosestPlayer()
+local function GetClosestTarget()
     local target = nil
     local shortestDist = Settings.FovRadius
     local center = (Settings.Platform == "PC") and UserInputService:GetMouseLocation() or (Camera.ViewportSize / 2)
 
+    local potentialTargets = {}
     for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Settings.AimPart) then
-            if Settings.TeamCheck and p.Team == LocalPlayer.Team then continue end
-            
-            local char = p.Character
+        if p ~= LocalPlayer and p.Character then table.insert(potentialTargets, p.Character) end
+    end
+    
+    if Settings.NpcAimbotEnabled then
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("Humanoid") and v.Parent and not Players:GetPlayerFromCharacter(v.Parent) then
+                if v.Parent ~= LocalPlayer.Character then table.insert(potentialTargets, v.Parent) end
+            end
+        end
+    end
+
+    for _, char in pairs(potentialTargets) do
+        local part = char:FindFirstChild(Settings.AimPart)
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if part and hum then
+            if Settings.AliveCheck and hum.Health <= 0 then continue end
+            local playerObj = Players:GetPlayerFromCharacter(char)
+            if Settings.TeamCheck and playerObj and playerObj.Team == LocalPlayer.Team then continue end
             if Settings.InvisibleCheck and char:FindFirstChild("Head") and char.Head.Transparency > 0.5 then continue end
             if Settings.ForceFieldCheck and char:FindFirstChildOfClass("ForceField") then continue end
 
-            local part = char[Settings.AimPart]
             local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-            
             if onScreen then
                 local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
                 if dist < shortestDist then
@@ -401,10 +472,136 @@ local function GetClosestPlayer()
     return target
 end
 
+--// ESP RENDER LOGIC
+local function UpdateESP()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+        
+        CreateEspCache(player)
+        local data = ESP_Objects[player]
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+
+        if char and hum and root and Settings.EspEnabled and hum.Health > 0 then
+            local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
+            
+            if onScreen then
+                local playerTeam = player.Team == LocalPlayer.Team
+                if Settings.TeamCheck and playerTeam then
+                    data.Box.Visible = false
+                    data.HealthBar.Visible = false
+                    data.HealthBarBG.Visible = false
+                    for _, l in pairs(data.Skeletons) do l.Visible = false end
+                    continue
+                end
+
+                -- Box & Health Logic
+                local sizeX = 2000 / pos.Z
+                local sizeY = 3000 / pos.Z
+                local boxPos = Vector2.new(pos.X - sizeX/2, pos.Y - sizeY/2)
+
+                if Settings.BoxEsp then
+                    data.Box.Visible = true
+                    data.Box.Size = Vector2.new(sizeX, sizeY)
+                    data.Box.Position = boxPos
+                else data.Box.Visible = false end
+
+                if Settings.HealthBar then
+                    local healthPct = hum.Health / hum.MaxHealth
+                    data.HealthBarBG.Visible = true
+                    data.HealthBarBG.From = Vector2.new(boxPos.X - 5, boxPos.Y + sizeY)
+                    data.HealthBarBG.To = Vector2.new(boxPos.X - 5, boxPos.Y)
+                    
+                    data.HealthBar.Visible = true
+                    data.HealthBar.From = Vector2.new(boxPos.X - 5, boxPos.Y + sizeY)
+                    data.HealthBar.To = Vector2.new(boxPos.X - 5, boxPos.Y + sizeY - (sizeY * healthPct))
+                    data.HealthBar.Color = Theme.HealthLow:Lerp(Theme.HealthHigh, healthPct)
+                else
+                    data.HealthBar.Visible = false
+                    data.HealthBarBG.Visible = false
+                end
+
+                -- Skeleton Logic
+                if Settings.SkeletonEsp then
+                    local bones = {}
+                    if hum.RigType == Enum.HumanoidRigType.R6 then
+                        -- R6 (6 Key joints)
+                        local points = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+                        local partMap = {}
+                        for _, pName in pairs(points) do partMap[pName] = char:FindFirstChild(pName) end
+                        
+                        if partMap.Torso and partMap.Head then
+                            bones = {
+                                {partMap.Head, partMap.Torso},
+                                {partMap.Torso, partMap["Left Arm"]},
+                                {partMap.Torso, partMap["Right Arm"]},
+                                {partMap.Torso, partMap["Left Leg"]},
+                                {partMap.Torso, partMap["Right Leg"]}
+                            }
+                        end
+                    else
+                        -- R15 (12 Key joints)
+                        local parts = {"Head", "UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm", "RightUpperArm", "RightLowerArm", "LeftUpperLeg", "LeftLowerLeg", "RightUpperLeg", "RightLowerLeg"}
+                        local partMap = {}
+                        for _, pName in pairs(parts) do partMap[pName] = char:FindFirstChild(pName) end
+                        
+                        if partMap.UpperTorso then
+                            bones = {
+                                {partMap.Head, partMap.UpperTorso},
+                                {partMap.UpperTorso, partMap.LowerTorso},
+                                {partMap.UpperTorso, partMap.LeftUpperArm},
+                                {partMap.LeftUpperArm, partMap.LeftLowerArm},
+                                {partMap.UpperTorso, partMap.RightUpperArm},
+                                {partMap.RightUpperArm, partMap.RightLowerArm},
+                                {partMap.LowerTorso, partMap.LeftUpperLeg},
+                                {partMap.LeftUpperLeg, partMap.LeftLowerLeg},
+                                {partMap.LowerTorso, partMap.RightUpperLeg},
+                                {partMap.RightUpperLeg, partMap.RightLowerLeg}
+                            }
+                        end
+                    end
+
+                    for i, line in pairs(data.Skeletons) do
+                        local connection = bones[i]
+                        if connection and connection[1] and connection[2] then
+                            local p1, o1 = Camera:WorldToViewportPoint(connection[1].Position)
+                            local p2, o2 = Camera:WorldToViewportPoint(connection[2].Position)
+                            if o1 and o2 then
+                                line.Visible = true
+                                line.From = Vector2.new(p1.X, p1.Y)
+                                line.To = Vector2.new(p2.X, p2.Y)
+                            else line.Visible = false end
+                        else line.Visible = false end
+                    end
+                else
+                    for _, l in pairs(data.Skeletons) do l.Visible = false end
+                end
+            else
+                data.Box.Visible = false
+                data.HealthBar.Visible = false
+                data.HealthBarBG.Visible = false
+                for _, l in pairs(data.Skeletons) do l.Visible = false end
+            end
+        else
+            data.Box.Visible = false
+            data.HealthBar.Visible = false
+            data.HealthBarBG.Visible = false
+            for _, l in pairs(data.Skeletons) do l.Visible = false end
+        end
+    end
+end
+
+-- Clean up on player leave
+Players.PlayerRemoving:Connect(RemoveEspCache)
+
 --// MAIN LOOP
 RunService.RenderStepped:Connect(function()
     local center = (Settings.Platform == "PC") and UserInputService:GetMouseLocation() or (Camera.ViewportSize / 2)
     
+    -- ESP Update
+    UpdateESP()
+
     -- Update FOV Overlay
     FovCircle.Visible = Settings.AimbotEnabled and not Settings.Streamable
     FovCircle.Radius = Settings.FovRadius
@@ -422,7 +619,7 @@ RunService.RenderStepped:Connect(function()
         end
     end
 
-    local foundTarget = GetClosestPlayer()
+    local foundTarget = GetClosestTarget()
     
     -- Tracer Visualization
     if Settings.TracerEnabled and foundTarget then
@@ -439,7 +636,6 @@ RunService.RenderStepped:Connect(function()
         local targetPos = foundTarget.Position
         local char = foundTarget.Parent
         
-        -- Speed-Based Prediction Lead
         if char.PrimaryPart then
             local velocity = char.PrimaryPart.Velocity
             local distance = (Camera.CFrame.Position - targetPos).Magnitude
@@ -460,7 +656,7 @@ local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
 CloseBtn.Position = UDim2.new(1, -35, 0, 8)
 CloseBtn.BackgroundTransparency = 1
-CloseBtn.Text = "×"
+CloseBtn.Text = "Ã—"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
 CloseBtn.TextSize = 28
 CloseBtn.Font = Enum.Font.GothamBold
