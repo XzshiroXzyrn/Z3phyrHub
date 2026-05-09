@@ -1,4 +1,4 @@
---- START OF FILE ai_studio_code (33).txt ---
+--- START OF FILE XzshiroOfficial Premium.txt ---
 
 --// SERVICES
 local Players = game:GetService("Players")
@@ -7,6 +7,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
+local CollectionService = game:GetService("CollectionService") -- ADDED
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
@@ -260,23 +261,49 @@ MainStroke.Color = Theme.Accent
 MainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 table.insert(RainbowElements.Strokes, MainStroke)
 
--- Open Premium Button
-local RestoreBtn = Instance.new("TextButton")
-RestoreBtn.Size = UDim2.new(0, 140, 0, 32)
-RestoreBtn.Position = UDim2.new(0.5, -70, 0, 15)
+--========================================================================--
+-- Open Premium Button (Draggable Image Icon)
+local RestoreBtn = Instance.new("ImageButton")
+RestoreBtn.Size = UDim2.new(0, 60, 0, 60)
+RestoreBtn.Position = UDim2.new(0.5, -30, 0, 15)
 RestoreBtn.BackgroundColor3 = Theme.Main
-RestoreBtn.Text = "OPEN PREMIUM"
-RestoreBtn.TextColor3 = Color3.new(1,1,1)
-RestoreBtn.Font = Enum.Font.JosefinSans
-RestoreBtn.TextSize = 13
-RestoreBtn.Visible = false -- Will be managed by logic
+RestoreBtn.ScaleType = Enum.ScaleType.Fit
+
+-- *** IMPORTANT: PLACE YOUR UPLOADED ROBLOX IMAGE ID HERE ***
+RestoreBtn.Image = "rbxassetid://YOUR_IMAGE_ID_HERE" 
+
+RestoreBtn.Visible = false 
 RestoreBtn.Parent = ScreenGui
-Instance.new("UICorner", RestoreBtn).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", RestoreBtn).CornerRadius = UDim.new(0, 12)
+
 local RestoreStroke = Instance.new("UIStroke", RestoreBtn)
 RestoreStroke.Thickness = 1.5
 RestoreStroke.Color = Theme.Accent
 RestoreStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 table.insert(RainbowElements.Strokes, RestoreStroke)
+
+-- Making the Restore Button Draggable
+local rDragging, rDragInput, rDragStart, rStartPos
+RestoreBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        rDragging = true; rDragStart = input.Position; rStartPos = RestoreBtn.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then rDragging = false end end)
+    end
+end)
+
+RestoreBtn.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then 
+        rDragInput = input 
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == rDragInput and rDragging then
+        local delta = input.Position - rDragStart
+        RestoreBtn.Position = UDim2.new(rStartPos.X.Scale, rStartPos.X.Offset + delta.X, rStartPos.Y.Scale, rStartPos.Y.Offset + delta.Y)
+    end
+end)
+--========================================================================--
 
 -- Stats HUD
 local StatsFrame = Instance.new("Frame")
@@ -422,7 +449,15 @@ end
 
 --// TABS POPULATION
 local CombatTab = CreateTab("Combat"); local VisualsTab = CreateTab("Visuals"); local SettingsTab = CreateTab("Settings"); local CustomTab = CreateTab("Custom"); local UiCustomTab = CreateTab("UI Custom"); local InfoTab = CreateTab("Info")
-CreateNav("COMBAT", CombatTab, "rbxassetid://7733674079"); CreateNav("VISUALS", VisualsTab, "rbxassetid://7733779610"); CreateNav("FILTERS", SettingsTab, "rbxassetid://7734053495"); CreateNav("CUSTOM", CustomTab, "rbxassetid://8997385940"); CreateNav("UI CUSTOM", UiCustomTab, "rbxassetid://7734068321"); CreateNav("INFO", InfoTab, "rbxassetid://7733770136")
+local PremiumTab = CreateTab("Premium") -- NEW TAB
+
+CreateNav("COMBAT", CombatTab, "rbxassetid://7733674079"); 
+CreateNav("VISUALS", VisualsTab, "rbxassetid://7733779610"); 
+CreateNav("FILTERS", SettingsTab, "rbxassetid://7734053495"); 
+CreateNav("PREMIUM", PremiumTab, "rbxassetid://10850255171"); -- NEW NAV
+CreateNav("CUSTOM", CustomTab, "rbxassetid://8997385940"); 
+CreateNav("UI CUSTOM", UiCustomTab, "rbxassetid://7734068321"); 
+CreateNav("INFO", InfoTab, "rbxassetid://7733770136")
 
 -- Combat Tab
 CreateToggle("Enable Aimbot", Settings.AimbotEnabled, function(v) Settings.AimbotEnabled = v end, CombatTab)
@@ -456,6 +491,40 @@ CreateToggle("Target Tracer", Settings.TracerEnabled, function(v) Settings.Trace
 CreateToggle("Streamable (Hide FOV/HUD)", Settings.Streamable, function(v) Settings.Streamable = v end, VisualsTab)
 CreateToggle("Show FPS & Ping HUD", Settings.ShowStats, function(v) Settings.ShowStats = v end, VisualsTab)
 
+-- Premium Tab Features
+local GlobalActive = true
+CreateToggle("See All Free Users", true, function(v) GlobalActive = v end, PremiumTab)
+
+local ListContainer = Instance.new("Frame", PremiumTab)
+ListContainer.Size = UDim2.new(1, 0, 0, 220); ListContainer.BackgroundColor3 = Theme.Secondary; Instance.new("UICorner", ListContainer)
+local ListHeader = Instance.new("TextLabel", ListContainer); ListHeader.Size = UDim2.new(1, 0, 0, 25); ListHeader.Text = "  GLOBAL FREE USER TRACKER"; ListHeader.TextColor3 = Theme.Accent; ListHeader.Font = Enum.Font.JosefinSans; ListHeader.TextSize = 13; ListHeader.TextXAlignment = Enum.TextXAlignment.Left; ListHeader.BackgroundTransparency = 1
+local ScrollList = Instance.new("ScrollingFrame", ListContainer); ScrollList.Size = UDim2.new(1, -10, 1, -35); ScrollList.Position = UDim2.new(0, 5, 0, 30); ScrollList.BackgroundTransparency = 1; ScrollList.CanvasSize = UDim2.new(0,0,0,0); ScrollList.AutomaticCanvasSize = Enum.AutomaticSize.Y; ScrollList.ScrollBarThickness = 2
+Instance.new("UIListLayout", ScrollList).Padding = UDim.new(0, 4)
+
+local function RefreshGlobalFreeUsers()
+    if not GlobalActive then return end
+    for _, v in pairs(ScrollList:GetChildren()) do if v:IsA("TextLabel") then v:Destroy() end end
+    
+    -- Local Server Detection
+    for _, p in pairs(Players:GetPlayers()) do
+        if CollectionService:HasTag(p, "XzFreeUser") then
+            local lbl = Instance.new("TextLabel", ScrollList)
+            lbl.Size = UDim2.new(1, 0, 0, 18); lbl.BackgroundTransparency = 1; lbl.Text = " [ONLINE] " .. p.Name .. " (This Server)"; lbl.TextColor3 = Theme.Text; lbl.Font = Enum.Font.JosefinSans; lbl.TextSize = 12; lbl.TextXAlignment = Enum.TextXAlignment.Left
+        end
+    end
+    
+    -- Mock Cross-Server Display (Placeholder for Database fetch)
+    local mockUsers = {"User_921", "SkiddedPro", "FreePlayer22"}
+    for _, name in pairs(mockUsers) do
+        local lbl = Instance.new("TextLabel", ScrollList)
+        lbl.Size = UDim2.new(1, 0, 0, 18); lbl.BackgroundTransparency = 1; lbl.Text = " [REMOTE] " .. name .. " (External Server)"; lbl.TextColor3 = Theme.TextDark; lbl.Font = Enum.Font.JosefinSans; lbl.TextSize = 12; lbl.TextXAlignment = Enum.TextXAlignment.Left
+    end
+end
+
+task.spawn(function()
+    while task.wait(5) do RefreshGlobalFreeUsers() end
+end)
+
 -- Settings/Filters
 CreateSelector("Platform Mode", {"PC", "Mobile"}, Settings.Platform, function(v) Settings.Platform = v end, SettingsTab)
 CreateToggle("FOV-Change Activation", Settings.FovChangeAim, function(v) Settings.FovChangeAim = v end, SettingsTab)
@@ -474,6 +543,29 @@ CreateButton("Reset Trigger Box", function() TriggerBox.Position = UDim2.new(1, 
 CreateSlider("Outline Color (Red)", 0, 255, Settings.ThemeR, function(v) Settings.ThemeR = v; UpdateThemeColor() end, UiCustomTab)
 CreateSlider("Outline Color (Green)", 0, 255, Settings.ThemeG, function(v) Settings.ThemeG = v; UpdateThemeColor() end, UiCustomTab)
 CreateSlider("Outline Color (Blue)", 0, 255, Settings.ThemeB, function(v) Settings.ThemeB = v; UpdateThemeColor() end, UiCustomTab)
+
+-- Info Tab Population
+local function AddInfoText(text, color, isRainbowed)
+    local lbl = Instance.new("TextLabel", InfoTab)
+    lbl.Size = UDim2.new(1, 0, 0, 24)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = "  " .. text
+    lbl.TextColor3 = color or Theme.Text
+    lbl.Font = Enum.Font.JosefinSans
+    lbl.TextSize = 14
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    if isRainbowed then table.insert(RainbowElements.Texts, lbl) end
+end
+
+AddInfoText("Owner: XzshiroOfficial", Theme.Accent, true)
+AddInfoText("Status: Active", Theme.Success, false)
+AddInfoText("Made: 5/5/2026", Theme.Text, false)
+AddInfoText("", Theme.Text, false)
+AddInfoText("Notes:", Theme.TextDark, false)
+AddInfoText("â€¢ Free users are marked with [FREE] in ESP.", Theme.Text, false)
+AddInfoText("â€¢ Premium category allows cross-server tracking.", Theme.Text, false)
+AddInfoText("â€¢ Adjust prediction based on your connection (Ping).", Theme.Text, false)
+AddInfoText("â€¢ Use premium features responsibly.", Theme.Text, false)
 
 CombatTab.Visible = true; UpdateNavStates(CombatTab)
 
@@ -519,7 +611,17 @@ local function UpdateESP()
                 data.Box.Visible = Settings.EspBox; data.Box.Size = Vector2.new(xSize, size); data.Box.Position = Vector2.new(pos.X - xSize/2, pos.Y - size/2); data.Box.Color = Theme.Accent
                 data.HealthBarBG.Visible = Settings.EspHealthBar; data.HealthBarBG.Size = Vector2.new(xSize, 4); data.HealthBarBG.Position = Vector2.new(pos.X - xSize/2, pos.Y - size/2 - 8)
                 data.HealthBar.Visible = Settings.EspHealthBar; data.HealthBar.Size = Vector2.new((hum.Health/hum.MaxHealth) * xSize, 4); data.HealthBar.Position = data.HealthBarBG.Position; data.HealthBar.Color = Color3.fromHSV(hum.Health/hum.MaxHealth * 0.3, 1, 1)
-                data.Name.Visible = Settings.EspNames; data.Name.Text = player.Name; data.Name.Position = Vector2.new(pos.X, pos.Y - size/2 - 24); data.Name.Color = Color3.new(1,1,1)
+                
+                -- NICKNAME CONNECTION LOGIC
+                local displayName = player.Name
+                if CollectionService:HasTag(player, "XzFreeUser") then
+                    displayName = "[FREE] " .. player.Name
+                    data.Name.Color = Color3.fromRGB(255, 255, 0) -- Yellow for Free users
+                else
+                    data.Name.Color = Color3.new(1,1,1)
+                end
+                
+                data.Name.Visible = Settings.EspNames; data.Name.Text = displayName; data.Name.Position = Vector2.new(pos.X, pos.Y - size/2 - 24)
             else visible = false end
         else visible = false end
         if not visible then data.Box.Visible = false; data.HealthBar.Visible = false; data.HealthBarBG.Visible = false; data.Name.Visible = false; for _, l in pairs(data.Skeleton) do l.Visible = false end end
@@ -558,19 +660,24 @@ local function GetClosestTarget()
     return target
 end
 
---// WINDOW CONTROLS (Updated for interactable-invisible)
+--// WINDOW CONTROLS
 local CloseBtn = Instance.new("TextButton", MainFrame)
 CloseBtn.Size = UDim2.new(0, 30, 0, 30); CloseBtn.Position = UDim2.new(1, -30, 0, 5); CloseBtn.BackgroundTransparency = 1; CloseBtn.Text = "Ã—"; CloseBtn.TextColor3 = Color3.fromRGB(220, 80, 80); CloseBtn.TextSize = 26
 
 CloseBtn.MouseButton1Click:Connect(function() 
     MainFrame.Visible = false; 
     Shadow.Visible = false; 
-    -- Instead of just visible, we ensure it's always ready to be clicked
 end)
 
-RestoreBtn.MouseButton1Click:Connect(function() 
-    MainFrame.Visible = true; 
-    Shadow.Visible = true; 
+-- Replaces simple click logic to allow both dragging and clicking safely
+RestoreBtn.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        -- Check if it wasn't dragged off far (less than 10 pixels movement)
+        if rDragStart and (input.Position - rDragStart).Magnitude < 10 then
+            MainFrame.Visible = true; 
+            Shadow.Visible = true; 
+        end
+    end
 end)
 
 --// MAIN LOOP
@@ -588,16 +695,16 @@ RunService.RenderStepped:Connect(function()
     local streamAlpha = Settings.Streamable and 1 or 0
     
     -- Stats Logic
-    StatsFrame.Visible = Settings.ShowStats -- Keeps interaction logic tied to toggle
+    StatsFrame.Visible = Settings.ShowStats 
     StatsFrame.BackgroundTransparency = streamAlpha == 1 and 1 or 0
     StatsLabel.TextTransparency = streamAlpha
     StatsStroke.Transparency = streamAlpha
 
     -- Open Button Logic
     local shouldRestoreBeActive = not MainFrame.Visible
-    RestoreBtn.Visible = shouldRestoreBeActive -- Only exists when menu closed
+    RestoreBtn.Visible = shouldRestoreBeActive 
     RestoreBtn.BackgroundTransparency = streamAlpha == 1 and 1 or 0
-    RestoreBtn.TextTransparency = streamAlpha
+    RestoreBtn.ImageTransparency = streamAlpha -- Swapped property for ImageButton
     RestoreStroke.Transparency = streamAlpha
 
     local currentColor = Theme.Accent
